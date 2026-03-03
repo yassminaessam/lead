@@ -76,7 +76,6 @@ export default function DashboardLayout() {
             </div>
             <div>
               <h1 className="font-bold text-xl text-foreground">LeadEngine</h1>
-              <p className="text-xs text-muted-foreground">{language === 'ar' ? 'نظام مبارز' : 'Mobarez system'}</p>
             </div>
           </div>
 
