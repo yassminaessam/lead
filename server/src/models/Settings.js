@@ -1,0 +1,38 @@
+import mongoose from 'mongoose';
+
+const settingsSchema = new mongoose.Schema({
+  _key: { type: String, default: 'main', unique: true },
+  companyName: { type: String, default: 'LeadEngine CRM' },
+  companyPhone: { type: String, default: '01012345678' },
+  companyEmail: { type: String, default: 'info@leadengine.com' },
+  timezone: { type: String, default: 'Africa/Cairo' },
+  emailNotifications: { type: Boolean, default: true },
+  smsNotifications: { type: Boolean, default: false },
+  desktopNotifications: { type: Boolean, default: true },
+  notifyNewLead: { type: Boolean, default: true },
+  notifyMissedCall: { type: Boolean, default: true },
+  notifyFollowUp: { type: Boolean, default: true },
+  androidDeviceIP: { type: String, default: '192.168.1.100' },
+  androidDevicePort: { type: String, default: '8080' },
+  androidApiKey: { type: String, default: '' },
+  autoRetry: { type: Boolean, default: true },
+  retryAttempts: { type: Number, default: 3 },
+  callTimeout: { type: Number, default: 30 },
+  mongodbUri: { type: String, default: '' },
+  autoBackup: { type: Boolean, default: true },
+  backupFrequency: { type: String, default: 'daily' },
+  backupRetention: { type: Number, default: 30 },
+  smtpHost: { type: String, default: 'smtp.gmail.com' },
+  smtpPort: { type: String, default: '587' },
+  smtpEmail: { type: String, default: '' },
+  smtpPassword: { type: String, default: '' },
+  emailSignature: { type: String, default: 'مع تحياتنا،\nفريق LeadEngine' },
+  whatsappEnabled: { type: Boolean, default: false },
+  whatsappApiKey: { type: String, default: '' },
+  whatsappPhoneNumber: { type: String, default: '' },
+  whatsappTemplate: { type: String, default: 'مرحباً {name}، شكراً لاهتمامك بخدماتنا.' },
+  phantombusterApiKey: { type: String, default: '' },
+  openaiApiKey: { type: String, default: '' },
+});
+
+export default mongoose.model('Settings', settingsSchema);
