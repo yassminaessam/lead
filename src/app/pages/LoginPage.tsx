@@ -102,30 +102,6 @@ export default function LoginPage() {
               {isLoading ? t('loading') : t('sign_in')}
             </Button>
           </form>
-          
-          {/* Demo Accounts - Elite Style */}
-          <div className="mt-6 p-4 bg-accent/50 rounded-xl border border-border backdrop-blur-sm">
-            <p className="text-sm text-center mb-3 font-semibold text-foreground">
-              {language === 'ar' ? '🎭 حسابات تجريبية' : '🎭 Demo Accounts'}
-            </p>
-            <div className="text-xs space-y-2">
-              <div className="flex justify-between items-center p-2 bg-card/50 rounded-lg">
-                <span className="font-semibold text-primary">Admin:</span>
-                <span className="text-muted-foreground">ahmed@leadengine.com</span>
-              </div>
-              <div className="flex justify-between items-center p-2 bg-card/50 rounded-lg">
-                <span className="font-semibold text-success">Sales:</span>
-                <span className="text-muted-foreground">sarah@leadengine.com</span>
-              </div>
-              <div className="flex justify-between items-center p-2 bg-card/50 rounded-lg">
-                <span className="font-semibold text-warning">Manager:</span>
-                <span className="text-muted-foreground">fatma@leadengine.com</span>
-              </div>
-              <p className="text-center text-muted-foreground mt-3 italic">
-                {language === 'ar' ? '✨ أي كلمة مرور ستعمل' : '✨ Any password will work'}
-              </p>
-            </div>
-          </div>
         </CardContent>
       </Card>
     </div>
