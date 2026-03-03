@@ -35,6 +35,56 @@ app.use('/api/users', usersRouter);
 app.use('/api/activities', activitiesRouter);
 app.use('/api/settings', settingsRouter);
 
+// Save scraped leads endpoint (extracted from scrape route to avoid puppeteer dependency)
+const Lead = mongoose.model('Lead');
+app.post('/api/scrape/save', async (req, res) => {
+  try {
+    const { leads: leadsData, assignTo } = req.body;
+    if (!Array.isArray(leadsData) || leadsData.length === 0) {
+      return res.status(400).json({ error: 'leads array is required' });
+    }
+
+    let success = 0;
+    let failed = 0;
+    let duplicates = 0;
+    let noPhone = 0;
+    const created = [];
+
+    for (const data of leadsData) {
+      if (!data.company_name) { failed++; continue; }
+      if (!data.phone) { noPhone++; continue; }
+
+      try {
+        const lead = await Lead.create({
+          company_name: data.company_name,
+          phone: String(data.phone).replace(/\s+/g, ''),
+          email: data.email || '',
+          website: data.website || '',
+          industry: data.industry || 'غير محدد',
+          city: data.city || 'غير محدد',
+          source: data.source || 'gmaps',
+          status: 'new',
+          assigned_to: assignTo || '',
+          notes: data.address ? `العنوان: ${data.address}` : '',
+          rating: data.rating || 0,
+        });
+        created.push(lead);
+        success++;
+      } catch (err) {
+        if (err.code === 11000) {
+          duplicates++;
+        } else {
+          failed++;
+        }
+      }
+    }
+
+    res.status(201).json({ success, failed, duplicates, noPhone, leads: created });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Health check
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected' });
