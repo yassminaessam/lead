@@ -52,6 +52,117 @@ const CITIES_AR = [
   'قنا', 'الغردقة', 'شرم الشيخ', 'بنها',
 ];
 
+const CITY_AREAS: Record<string, string[]> = {
+  'القاهرة': [
+    'مدينة نصر', 'المعادي', 'الدقي', 'المهندسين', 'الزمالك', 'وسط البلد',
+    'مصر الجديدة', 'العباسية', 'شبرا', 'حلوان', 'التجمع الخامس', 'الرحاب',
+    'مدينتي', 'المقطم', 'عين شمس', 'النزهة', 'السيدة زينب', 'الدرب الاحمر',
+    'حدائق القبة', 'المرج', 'الشروق', 'بدر', 'العبور', 'الزيتون',
+    'روض الفرج', 'المطرية', 'بولاق', 'الوايلي', 'حدائق المعادي',
+    'دار السلام', 'طره', 'المعصرة', 'التبين', 'الخليفة',
+    'منشية ناصر', 'الساحل', 'شبرا الخيمة', 'الموسكي', 'الأزهر',
+    'جاردن سيتي', 'المنيل', 'الشيخ زايد', 'القطامية',
+  ],
+  'الجيزة': [
+    'الهرم', 'فيصل', '6 اكتوبر', 'الشيخ زايد', 'حدائق الأهرام', 'العمرانية',
+    'الحوامدية', 'البدرشين', 'أبو النمرس', 'الوراق', 'إمبابة', 'الدقي',
+    'العجوزة', 'بولاق الدكرور', 'أوسيم', 'كرداسة', 'المنيب',
+    'الطالبية', 'ساقية مكي', 'حدائق الاهرام',
+  ],
+  'الإسكندرية': [
+    'سيدي جابر', 'سموحة', 'المنتزه', 'سيدي بشر', 'كليوباترا', 'رشدي',
+    'ستانلي', 'الابراهيمية', 'العصافرة', 'المندرة', 'جليم', 'لوران',
+    'محرم بك', 'العطارين', 'بحري', 'العجمي', 'الدخيلة', 'المعمورة',
+    'كامب شيزار', 'فليمنج', 'ميامي', 'أبو قير', 'المنشية', 'الشاطبي',
+    'باكوس', 'بولكلي', 'زيزينيا', 'الحضرة', 'كرموز', 'العامرية',
+    'برج العرب', 'المكس',
+  ],
+  'المنصورة': [
+    'المنصورة', 'ميت غمر', 'طلخا', 'دكرنس', 'أجا', 'السنبلاوين', 'شربين',
+    'بلقاس', 'المنزلة', 'تمي الأمديد', 'نبروه', 'منية النصر', 'الجمالية',
+  ],
+  'طنطا': [
+    'طنطا', 'المحلة الكبرى', 'كفر الزيات', 'زفتى', 'بسيون', 'سمنود',
+    'قطور', 'السنطة', 'المحلة', 'صفط تراب',
+  ],
+  'الزقازيق': [
+    'الزقازيق', 'بلبيس', 'العاشر من رمضان', 'أبو حماد', 'منيا القمح', 'فاقوس',
+    'أبو كبير', 'ههيا', 'كفر صقر', 'ديرب نجم', 'الحسينية', 'الصالحية الجديدة',
+  ],
+  'أسيوط': [
+    'أسيوط', 'ديروط', 'القوصية', 'أبنوب', 'الفتح', 'منفلوط',
+    'أسيوط الجديدة', 'الغنايم', 'ساحل سليم', 'أبو تيج', 'صدفا', 'البداري',
+  ],
+  'الأقصر': [
+    'الأقصر', 'الأقصر شرق', 'الأقصر غرب', 'الزينية', 'الطود', 'البياضية',
+    'أرمنت', 'القرنة', 'إسنا', 'الأقالتة',
+  ],
+  'أسوان': [
+    'أسوان', 'إدفو', 'كوم أمبو', 'دراو', 'نصر النوبة',
+    'أبو سمبل', 'البصيلية', 'السباعية',
+  ],
+  'بورسعيد': [
+    'بورسعيد', 'الزهور', 'المناخ', 'الشرق', 'الضواحي', 'بور فؤاد',
+    'العرب', 'الجنوب', 'حي الضواحي',
+  ],
+  'الإسماعيلية': [
+    'الإسماعيلية', 'القنطرة شرق', 'فايد', 'التل الكبير', 'أبو صوير',
+    'القنطرة غرب', 'القصاصين', 'نفيشة',
+  ],
+  'السويس': [
+    'السويس', 'الأربعين', 'عتاقة', 'فيصل', 'الجناين',
+    'السويس الجديدة', 'حي الأربعين', 'الهجانة',
+  ],
+  'دمياط': [
+    'دمياط', 'دمياط الجديدة', 'رأس البر', 'فارسكور', 'كفر سعد',
+    'الزرقا', 'السرو', 'عزبة البرج', 'كفر البطيخ',
+  ],
+  'المنيا': [
+    'المنيا', 'المنيا الجديدة', 'ملوي', 'سمالوط', 'مطاي', 'بني مزار',
+    'أبو قرقاص', 'دير مواس', 'العدوة', 'مغاغة', 'المنيا الأقصى',
+  ],
+  'سوهاج': [
+    'سوهاج', 'أخميم', 'جرجا', 'طهطا', 'المراغة', 'البلينا',
+    'سوهاج الجديدة', 'ساقلتة', 'دار السلام', 'المنشاة', 'جهينة',
+  ],
+  'بني سويف': [
+    'بني سويف', 'الواسطى', 'ناصر', 'إهناسيا', 'ببا',
+    'بني سويف الجديدة', 'الفشن', 'سمسطا', 'نيدة',
+  ],
+  'الفيوم': [
+    'الفيوم', 'الفيوم الجديدة', 'سنورس', 'إبشواي', 'طامية', 'يوسف الصديق',
+    'أطسا', 'الشواشنة', 'دمو',
+  ],
+  'شبين الكوم': [
+    'شبين الكوم', 'مدينة السادات', 'منوف', 'قويسنا', 'أشمون', 'الباجور', 'تلا',
+    'بركة السبع', 'الشهداء', 'سرس الليان',
+  ],
+  'كفر الشيخ': [
+    'كفر الشيخ', 'دسوق', 'فوه', 'بيلا', 'الحامول', 'مطوبس',
+    'الرياض', 'سيدي سالم', 'قلين', 'بلطيم',
+  ],
+  'مرسى مطروح': [
+    'مرسى مطروح', 'الحمام', 'العلمين', 'الضبعة', 'سيدي عبد الرحمن',
+    'الساحل الشمالي', 'رأس الحكمة', 'سيوة',
+  ],
+  'قنا': [
+    'قنا', 'نجع حمادي', 'دشنا', 'قوص', 'أبو تشت', 'نقادة',
+    'فرشوط', 'الوقف', 'قنا الجديدة',
+  ],
+  'الغردقة': [
+    'الغردقة', 'سهل حشيش', 'الجونة', 'مكادي', 'القصير',
+    'سفاجا', 'مرسى علم', 'الاحياء',
+  ],
+  'شرم الشيخ': [
+    'شرم الشيخ', 'نبق', 'خليج نعمة', 'هضبة أم السيد', 'رأس محمد',
+    'شرم القديمة', 'دهب', 'نويبع', 'طابا',
+  ],
+  'بنها': [
+    'بنها', 'شبرا الخيمة', 'قليوب', 'القناطر الخيرية', 'كفر شكر',
+    'طوخ', 'شبين القناطر', 'الخصوص', 'العبور',
+  ],
+};
+
 const INDUSTRIES_AR = [
   { label: 'عيادات', value: 'عيادات' },
   { label: 'مستشفيات', value: 'مستشفيات' },
@@ -79,6 +190,7 @@ export default function DataCollectionPage() {
   // Google Maps direct scrape params
   const [gmapsQuery, setGmapsQuery] = useState('');
   const [gmapsCity, setGmapsCity] = useState('القاهرة');
+  const [gmapsArea, setGmapsArea] = useState('');
   const [gmapsMaxResults] = useState('10000');
   const [comprehensive, setComprehensive] = useState(false);
   const [queriesRun, setQueriesRun] = useState(0);
@@ -108,7 +220,8 @@ export default function DataCollectionPage() {
     setProgressMsg(language === 'ar' ? 'جاري الاتصال...' : 'Connecting...');
     setProgressPercent(0);
 
-    const query = gmapsQuery || `${industry} في ${gmapsCity}`;
+    const selectedArea = gmapsArea && gmapsArea !== 'all' ? gmapsArea : '';
+    const query = gmapsQuery || `${industry} في ${selectedArea || gmapsCity}`;
     const maxRes = parseInt(gmapsMaxResults) || 40;
 
     // Build SSE URL with query params
@@ -118,6 +231,7 @@ export default function DataCollectionPage() {
       industry,
       maxResults: String(maxRes),
       comprehensive: String(comprehensive),
+      ...(selectedArea ? { area: selectedArea } : {}),
     });
 
     const eventSource = new EventSource(`/api/scrape/gmaps/stream?${params.toString()}`);
@@ -323,7 +437,7 @@ export default function DataCollectionPage() {
 
             <div className="space-y-2">
               <Label>{language === 'ar' ? 'المدينة' : 'City'}</Label>
-              <Select value={gmapsCity} onValueChange={setGmapsCity}>
+              <Select value={gmapsCity} onValueChange={(v) => { setGmapsCity(v); setGmapsArea(''); }}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -336,6 +450,29 @@ export default function DataCollectionPage() {
             </div>
           </div>
 
+          {/* Area/Neighborhood Selector */}
+          {CITY_AREAS[gmapsCity] && CITY_AREAS[gmapsCity].length > 0 && (
+            <div className="space-y-2">
+              <Label>{language === 'ar' ? 'المنطقة / الحي (اختياري)' : 'Area / Neighborhood (optional)'}</Label>
+              <Select value={gmapsArea} onValueChange={setGmapsArea}>
+                <SelectTrigger>
+                  <SelectValue placeholder={language === 'ar' ? 'كل المناطق' : 'All areas'} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{language === 'ar' ? 'كل المناطق' : 'All areas'}</SelectItem>
+                  {CITY_AREAS[gmapsCity].map(a => (
+                    <SelectItem key={a} value={a}>{a}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {language === 'ar'
+                  ? 'اختر منطقة محددة للبحث الشامل داخلها — أو اتركها لكل المناطق'
+                  : 'Pick a specific area for focused comprehensive search — or leave for all areas'}
+              </p>
+            </div>
+          )}
+
           {/* Comprehensive Search Toggle */}
           <div className="flex items-center justify-between p-4 rounded-xl border bg-gradient-to-r from-blue-500/5 to-purple-500/5">
             <div className="flex items-center gap-3">
@@ -345,7 +482,9 @@ export default function DataCollectionPage() {
               <div>
                 <div className="flex items-center gap-2">
                   <Label htmlFor="comprehensive" className="font-semibold cursor-pointer">
-                    {language === 'ar' ? 'بحث شامل (جميع المناطق)' : 'Comprehensive Search (All Areas)'}
+                    {language === 'ar'
+                      ? (gmapsArea && gmapsArea !== 'all' ? `بحث شامل داخل ${gmapsArea}` : 'بحث شامل (جميع المناطق)')
+                      : (gmapsArea && gmapsArea !== 'all' ? `Comprehensive Search in ${gmapsArea}` : 'Comprehensive Search (All Areas)')}
                   </Label>
                   <Badge variant="secondary" className="text-xs">
                     <Zap className="h-3 w-3 mr-1" />
@@ -354,8 +493,12 @@ export default function DataCollectionPage() {
                 </div>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   {language === 'ar'
-                    ? `بحث تلقائي في جميع أحياء ومناطق المدينة للحصول على أكبر عدد من النتائج — يستغرق وقتاً أطول`
-                    : 'Automatically searches all city neighborhoods for maximum results — takes longer'}
+                    ? (gmapsArea && gmapsArea !== 'all'
+                      ? `بحث متعدد بطرق مختلفة داخل ${gmapsArea} للحصول على أكبر عدد من النتائج`
+                      : 'بحث تلقائي في جميع أحياء ومناطق المدينة للحصول على أكبر عدد من النتائج — يستغرق وقتاً أطول')
+                    : (gmapsArea && gmapsArea !== 'all'
+                      ? `Multiple search variations within ${gmapsArea} for maximum results`
+                      : 'Automatically searches all city neighborhoods for maximum results — takes longer')}
                 </p>
               </div>
             </div>

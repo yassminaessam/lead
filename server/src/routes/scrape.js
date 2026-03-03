@@ -307,17 +307,37 @@ function cleanBusiness(b, industry, city) {
 }
 
 // Build query list helper
-function buildQueryList(searchQuery, city, industry, comprehensive) {
-  const baseQuery = searchQuery || `${industry || ''} في ${city || ''}`.trim();
-  if (!comprehensive || !city) return [baseQuery];
+function buildQueryList(searchQuery, city, industry, comprehensive, area) {
+  const baseQuery = searchQuery || `${industry || ''} في ${area || city || ''}`.trim();
+  if (!comprehensive) return [baseQuery];
 
+  // If a specific area is selected, do comprehensive search within that area
+  // by searching with different query variations
+  if (area) {
+    const searchTerm = searchQuery
+      ? searchQuery.replace(new RegExp((area || city || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), '').replace(/\s*(في|بـ|ب|فى)\s*$/g, '').trim()
+      : (industry || '');
+    const queries = [
+      baseQuery,
+      `${searchTerm} ${area}`,
+      `${searchTerm} في ${area} ${city || ''}`,
+      `${searchTerm} بالقرب من ${area}`,
+      `${searchTerm} شارع رئيسي ${area}`,
+      `أفضل ${searchTerm} في ${area}`,
+      `${searchTerm} near ${area}`,
+    ];
+    return [...new Set(queries)];
+  }
+
+  // Comprehensive search across all city areas
+  if (!city) return [baseQuery];
   const areas = CITY_AREAS[city] || [];
   const queries = [baseQuery];
   const searchTerm = searchQuery
     ? searchQuery.replace(new RegExp(city.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), '').replace(/\s*(في|بـ|ب|فى)\s*$/g, '').trim()
     : (industry || '');
-  for (const area of areas) {
-    queries.push(`${searchTerm} في ${area}`);
+  for (const a of areas) {
+    queries.push(`${searchTerm} في ${a}`);
   }
   return queries;
 }
@@ -339,7 +359,7 @@ router.get('/gmaps/stream', async (req, res) => {
   };
 
   let browser = null;
-  const { searchQuery, city, industry, maxResults: maxResultsStr, comprehensive: compStr } = req.query;
+  const { searchQuery, city, industry, maxResults: maxResultsStr, comprehensive: compStr, area } = req.query;
   const maxResults = parseInt(maxResultsStr) || 40;
   const comprehensive = compStr === 'true';
 
@@ -350,7 +370,7 @@ router.get('/gmaps/stream', async (req, res) => {
   }
 
   try {
-    const queries = buildQueryList(searchQuery, city, industry, comprehensive);
+    const queries = buildQueryList(searchQuery, city, industry, comprehensive, area);
     const limit = Math.min(maxResults, 10000);
     // In comprehensive mode, limit per-area to 40 (breadth over depth)
     const maxPerQuery = comprehensive ? Math.min(100, limit) : limit;
@@ -505,12 +525,12 @@ router.get('/gmaps/stream', async (req, res) => {
 router.post('/gmaps', async (req, res) => {
   let browser = null;
   try {
-    const { searchQuery, city, industry, maxResults = 40, comprehensive = false } = req.body;
+    const { searchQuery, city, industry, maxResults = 40, comprehensive = false, area } = req.body;
     if (!searchQuery && !city) {
       return res.status(400).json({ error: 'searchQuery or city is required' });
     }
 
-    const queries = buildQueryList(searchQuery, city, industry, comprehensive);
+    const queries = buildQueryList(searchQuery, city, industry, comprehensive, area);
     const limit = Math.min(maxResults, 10000);
     const maxPerQuery = comprehensive ? Math.min(100, limit) : limit;
 
