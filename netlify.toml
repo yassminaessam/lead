@@ -9,6 +9,7 @@
 [functions]
   node_bundler = "esbuild"
   included_files = ["server/src/**"]
+  external_node_modules = ["bcrypt"]
 
 # Redirect API calls to the serverless function
 [[redirects]]
