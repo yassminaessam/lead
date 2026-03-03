@@ -61,9 +61,6 @@ export default function LoginPage() {
           
           <div>
             <CardTitle className="text-4xl font-bold text-primary mb-2">LeadEngine</CardTitle>
-            <CardDescription className="text-base">
-              {language === 'ar' ? 'نظام مبارز الاحترافي' : 'Mobarez system'}
-            </CardDescription>
           </div>
         </CardHeader>
 
