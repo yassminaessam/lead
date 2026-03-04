@@ -277,40 +277,95 @@ export default function DataCollectionPage() {
           throw new Error(language === 'ar' ? 'لا توجد استعلامات للبحث' : 'No queries to search');
         }
 
+        // Shuffle queries so different streets get prioritized each run
+        const shuffled = queries.map((q, idx) => ({ query: q, label: queryLabels[idx] || q.substring(0, 40), origIdx: idx }));
+        for (let i = shuffled.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+        }
+
         // Step 2: Run queries one by one via search-single
         const allLeads: ScrapedLead[] = [];
         const seenNames = new Set<string>();
         const stats: { query: string; found: number; new: number }[] = [];
         let debugInfo: Record<string, unknown> | null = null;
+        const failedQueries: { query: string; label: string; engineUsed: number }[] = [];
 
-        for (let i = 0; i < queries.length; i++) {
-          const query = queries[i];
-          const label = queryLabels[i] || query.substring(0, 40);
+        // Helper to run a single query
+        const runQuery = async (q: string, engineHint: number): Promise<{ leads: ScrapedLead[]; total: number; _debug?: Record<string, unknown> } | null> => {
+          try {
+            const res = await fetch('/api/scrape/gmaps/search-single', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ query: q, engineHint }),
+            });
+            if (res.ok) return await res.json();
+          } catch { /* ignore */ }
+          return null;
+        };
 
-          setProgressMsg(`${i + 1}/${queries.length} — ${label}`);
-          setProgressPercent(Math.round((i / queries.length) * 100));
+        for (let i = 0; i < shuffled.length; i++) {
+          const { query, label } = shuffled[i];
 
-          // Add random delay between requests (1.5–4s) to distribute load and avoid rate-limiting
+          setProgressMsg(`${i + 1}/${shuffled.length} — ${label}`);
+          setProgressPercent(Math.round((i / shuffled.length) * 100));
+
+          // Longer delay between requests (3–8s) to avoid rate-limiting
           if (i > 0) {
-            const delay = 1500 + Math.floor(Math.random() * 2500);
+            const delay = 3000 + Math.floor(Math.random() * 5000);
             await new Promise(r => setTimeout(r, delay));
           }
 
           // Rotate engine per query: 1=brave, 2=google, 3=startpage
           const engineHint = (i % 3) + 1;
 
-          try {
-            const res = await fetch('/api/scrape/gmaps/search-single', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ query, engineHint }),
-            });
+          const data = await runQuery(query, engineHint);
 
-            if (res.ok) {
-              const data = await res.json();
-              // Capture debug info from first query for diagnostics
-              if (i === 0 && data._debug) debugInfo = data._debug;
+          if (data && (data.total || 0) > 0) {
+            if (i === 0 && data._debug) debugInfo = data._debug as Record<string, unknown>;
+            const newLeads: ScrapedLead[] = [];
+            for (const lead of data.leads || []) {
+              const key = (lead.company_name || '').toLowerCase().trim();
+              if (key && !seenNames.has(key)) {
+                seenNames.add(key);
+                newLeads.push({
+                  ...lead,
+                  industry: lead.industry || industry,
+                  city: selectedArea || label,
+                  selected: !lead.alreadySaved,
+                });
+              }
+            }
+            allLeads.push(...newLeads);
+            setResults([...allLeads]);
+            stats.push({ query: label, found: data.total || 0, new: newLeads.length });
+          } else {
+            // Track failed queries for retry with different engine
+            failedQueries.push({ query, label, engineUsed: engineHint });
+            stats.push({ query: label, found: 0, new: 0 });
+          }
 
+          setQueryStats([...stats]);
+          setQueriesRun(i + 1);
+        }
+
+        // Retry phase: retry failed queries with a different engine + longer delay
+        if (failedQueries.length > 0 && failedQueries.length < shuffled.length) {
+          setProgressMsg(language === 'ar' ? `إعادة محاولة ${failedQueries.length} استعلام...` : `Retrying ${failedQueries.length} queries...`);
+          const retryBatch = failedQueries.slice(0, Math.min(failedQueries.length, 15)); // limit retries
+          for (let r = 0; r < retryBatch.length; r++) {
+            const { query, label, engineUsed } = retryBatch[r];
+            // Pick a different engine than the one that failed
+            const retryEngine = engineUsed === 3 ? 1 : engineUsed + 1;
+
+            // Longer delay for retries (5–10s)
+            const delay = 5000 + Math.floor(Math.random() * 5000);
+            await new Promise(res => setTimeout(res, delay));
+
+            setProgressMsg(`${language === 'ar' ? 'إعادة' : 'Retry'} ${r + 1}/${retryBatch.length} — ${label}`);
+
+            const data = await runQuery(query, retryEngine);
+            if (data && (data.total || 0) > 0) {
               const newLeads: ScrapedLead[] = [];
               for (const lead of data.leads || []) {
                 const key = (lead.company_name || '').toLowerCase().trim();
@@ -326,16 +381,12 @@ export default function DataCollectionPage() {
               }
               allLeads.push(...newLeads);
               setResults([...allLeads]);
-              stats.push({ query: label, found: data.total || 0, new: newLeads.length });
-            } else {
-              stats.push({ query: label, found: 0, new: 0 });
+              // Update the stat entry for this query
+              const statIdx = stats.findIndex(s => s.query === label);
+              if (statIdx >= 0) stats[statIdx] = { query: label, found: data.total || 0, new: newLeads.length };
+              setQueryStats([...stats]);
             }
-          } catch {
-            stats.push({ query: label, found: 0, new: 0 });
           }
-
-          setQueryStats([...stats]);
-          setQueriesRun(i + 1);
         }
 
         // Final stats

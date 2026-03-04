@@ -521,7 +521,7 @@ let requestCounter = 0;
 // engineHint: 0 = auto-rotate, 1 = brave, 2 = google, 3 = startpage
 async function scrapeLocalSearch(query, engineHint = 0) {
   let businesses = [];
-  const _debug = { strategies: [], htmlLengths: {}, statusCodes: {}, error: null };
+  const _debug = { strategies: [], htmlLengths: {}, statusCodes: {}, error: null, engineOrder: [] };
 
   // Determine engine order based on rotation or hint
   const counter = engineHint > 0 ? engineHint - 1 : requestCounter++;
@@ -530,6 +530,7 @@ async function scrapeLocalSearch(query, engineHint = 0) {
     ['brave', 'startpage', 'google'],
     ['startpage', 'google', 'brave'],
   ][counter % 3];
+  _debug.engineOrder = engineOrder;
 
   for (const engine of engineOrder) {
     if (businesses.length > 0) break;
@@ -547,6 +548,10 @@ async function scrapeLocalSearch(query, engineHint = 0) {
     } catch (err) {
       _debug.error = `${engine}: ${err.message}`;
       console.error(`[scrape] ${engine} failed:`, err.message);
+    }
+    // Small delay between engine fallback attempts to avoid rapid-fire
+    if (businesses.length === 0) {
+      await new Promise(r => setTimeout(r, 500 + Math.floor(Math.random() * 1000)));
     }
   }
 
