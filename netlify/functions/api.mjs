@@ -86,6 +86,49 @@ app.post('/api/scrape/save', async (req, res) => {
   }
 });
 
+// Single-query search endpoint (used by frontend for batched comprehensive search)
+app.post('/api/scrape/gmaps/search-single', async (req, res) => {
+  try {
+    const { query } = req.body;
+    if (!query) return res.status(400).json({ error: 'query is required' });
+
+    const results = await scrapeGoogleLocalSearch(query);
+
+    // Check existing leads
+    const leads = results.map(biz => ({
+      company_name: biz.name,
+      phone: (biz.phone || '').replace(/[\s\-]+/g, ''),
+      email: '',
+      website: biz.website || '',
+      industry: biz.category || '',
+      city: '',
+      source: 'gmaps',
+      address: biz.address || '',
+      rating: biz.rating || 0,
+    }));
+
+    const phones = leads.filter(l => l.phone).map(l => l.phone);
+    const existingPhones = new Set();
+    if (phones.length > 0) {
+      const existing = await Lead.find({ phone: { $in: phones } }, 'phone');
+      existing.forEach(e => existingPhones.add(e.phone));
+    }
+
+    res.json({
+      leads: leads.map(l => ({
+        ...l,
+        alreadySaved: l.phone ? existingPhones.has(l.phone) : false,
+        selected: l.phone ? !existingPhones.has(l.phone) : true,
+      })),
+      total: leads.length,
+      withPhone: leads.filter(l => l.phone).length,
+    });
+  } catch (err) {
+    console.error('[scrape/search-single] Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Google Maps search via HTTP (serverless-compatible, no puppeteer)
 app.post('/api/scrape/gmaps/search', async (req, res) => {
   try {
@@ -426,71 +469,247 @@ function buildAreaQueries(searchTerm, area, city) {
 }
 
 // HTTP-based Google Maps scraper (no puppeteer)
+// Uses multiple strategies: local search, regular search, consent bypass
+const USER_AGENTS = [
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0',
+];
+
+function getRandomUA() {
+  return USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
+}
+
+function buildGoogleHeaders() {
+  return {
+    'User-Agent': getRandomUA(),
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+    'Accept-Language': 'ar-EG,ar;q=0.9,en-US;q=0.8,en;q=0.7',
+    'Accept-Encoding': 'identity',
+    'Cache-Control': 'no-cache',
+    'Pragma': 'no-cache',
+    // Bypass Google consent screen
+    'Cookie': 'CONSENT=PENDING+987; SOCS=CAESHAgBEhJnd3NfMjAyMzA4MTAtMF9SQzIaAmFyIAEaBgiA_LyaBg; NID=511=dummy',
+    'Sec-Fetch-Dest': 'document',
+    'Sec-Fetch-Mode': 'navigate',
+    'Sec-Fetch-Site': 'none',
+    'Sec-Fetch-User': '?1',
+    'Upgrade-Insecure-Requests': '1',
+  };
+}
+
 async function scrapeGoogleLocalSearch(query) {
-  const params = new URLSearchParams({ q: query, tbm: 'lcl', hl: 'ar', gl: 'eg' });
-  const url = `https://www.google.com/search?${params}`;
+  let businesses = [];
 
-  const resp = await fetch(url, {
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-      'Accept-Language': 'ar,en;q=0.9',
-      'Accept-Encoding': 'identity',
-    },
-  });
+  // Strategy A: Google local search (tbm=lcl)
+  try {
+    const params = new URLSearchParams({ q: query, tbm: 'lcl', hl: 'ar', gl: 'eg', num: '20' });
+    const url = `https://www.google.com/search?${params}`;
+    const resp = await fetch(url, { headers: buildGoogleHeaders(), redirect: 'follow' });
+    if (resp.ok) {
+      const html = await resp.text();
+      businesses = parseLocalSearchHTML(html);
+    }
+  } catch (err) {
+    console.error('[scrape] Strategy A (lcl) failed:', err.message);
+  }
 
-  if (!resp.ok) throw new Error(`Google returned ${resp.status}`);
-  const html = await resp.text();
-  return parseLocalSearchHTML(html);
+  // Strategy B: Regular Google search with location, parse local pack
+  if (businesses.length === 0) {
+    try {
+      const params = new URLSearchParams({ q: query, hl: 'ar', gl: 'eg', num: '20' });
+      const url = `https://www.google.com/search?${params}`;
+      const resp = await fetch(url, { headers: buildGoogleHeaders(), redirect: 'follow' });
+      if (resp.ok) {
+        const html = await resp.text();
+        businesses = parseLocalSearchHTML(html);
+      }
+    } catch (err) {
+      console.error('[scrape] Strategy B (regular) failed:', err.message);
+    }
+  }
+
+  // Strategy C: Google Maps direct URL scraping
+  if (businesses.length === 0) {
+    try {
+      const mapsUrl = `https://www.google.com/maps/search/${encodeURIComponent(query)}/?hl=ar`;
+      const resp = await fetch(mapsUrl, { headers: buildGoogleHeaders(), redirect: 'follow' });
+      if (resp.ok) {
+        const html = await resp.text();
+        businesses = parseGoogleMapsHTML(html);
+      }
+    } catch (err) {
+      console.error('[scrape] Strategy C (maps) failed:', err.message);
+    }
+  }
+
+  // Strategy D: Google search via country-specific domain
+  if (businesses.length === 0) {
+    try {
+      const params = new URLSearchParams({ q: query, tbm: 'lcl', hl: 'ar' });
+      const url = `https://www.google.com.eg/search?${params}`;
+      const resp = await fetch(url, { headers: buildGoogleHeaders(), redirect: 'follow' });
+      if (resp.ok) {
+        const html = await resp.text();
+        businesses = parseLocalSearchHTML(html);
+      }
+    } catch (err) {
+      console.error('[scrape] Strategy D (google.com.eg) failed:', err.message);
+    }
+  }
+
+  return businesses;
+}
+
+// Parse Google Maps page HTML for business data embedded in JS
+function parseGoogleMapsHTML(html) {
+  const businesses = [];
+  const seenNames = new Set();
+
+  // Google Maps embeds data in JavaScript arrays — extract using regex patterns
+  // Pattern: ["business name",null,[null,null,lat,lng],...,"phone",...,"address",...]
+  
+  // Extract phone numbers with nearby business names from the raw HTML/JS
+  const phoneRegex = /(?:0[12]\d[\s\-]?\d{3,4}[\s\-]?\d{3,4}|\+20[\s\-]?\d{1,2}[\s\-]?\d{3,4}[\s\-]?\d{3,4})/g;
+  const allPhones = [...html.matchAll(phoneRegex)];
+  
+  for (const phoneMatch of allPhones) {
+    const phone = phoneMatch[0].replace(/[\s\-]+/g, '');
+    // Look for business name near the phone in the source
+    const idx = phoneMatch.index;
+    const context = html.substring(Math.max(0, idx - 300), idx + 50);
+    
+    // Try to extract name from JSON-like strings nearby
+    const nameMatches = context.match(/"([^"]{3,60})"/g);
+    if (nameMatches) {
+      // Find the most likely business name (Arabic text, reasonable length)
+      for (let i = nameMatches.length - 1; i >= 0; i--) {
+        const candidate = nameMatches[i].replace(/"/g, '').trim();
+        if (candidate.length >= 3 && candidate.length <= 60 && 
+            /[\u0600-\u06FF]/.test(candidate) && 
+            !candidate.match(/^(http|www|google|null|true|false|\d+$)/) &&
+            !seenNames.has(candidate.toLowerCase())) {
+          seenNames.add(candidate.toLowerCase());
+          businesses.push({
+            name: candidate,
+            phone,
+            address: '',
+            rating: 0,
+            category: '',
+            website: '',
+          });
+          break;
+        }
+      }
+    }
+  }
+
+  // Also try extracting structured data from Maps JS payload
+  // Google Maps stores results in window.APP_INITIALIZATION_STATE or similar
+  const jsonArrayRegex = /\["([^"]{3,60})"[^\]]{0,500}?"(0[12]\d{8,10}|\+20\d{9,11})"/g;
+  let jMatch;
+  while ((jMatch = jsonArrayRegex.exec(html)) !== null) {
+    const name = jMatch[1].trim();
+    const phone = jMatch[2].replace(/[\s\-]+/g, '');
+    if (name.length >= 3 && !seenNames.has(name.toLowerCase())) {
+      seenNames.add(name.toLowerCase());
+      businesses.push({ name, phone, address: '', rating: 0, category: '', website: '' });
+    }
+  }
+
+  return businesses;
 }
 
 function parseLocalSearchHTML(html) {
   const $ = cheerio.load(html);
   const businesses = [];
+  const seenNames = new Set();
 
   // Strategy 1: Parse each result card with data-cid
   $('[data-cid]').each((_, el) => {
     const $el = $(el);
     const biz = extractBizFromCard($, $el);
-    if (biz && biz.name) businesses.push(biz);
+    if (biz && biz.name && !seenNames.has(biz.name.toLowerCase())) {
+      seenNames.add(biz.name.toLowerCase());
+      businesses.push(biz);
+    }
   });
 
-  // Strategy 2: Look for result containers with headings
+  // Strategy 2: Local pack results — div with class containing 'VkpGBb' or similar
   if (businesses.length === 0) {
-    const containers = $('div').filter((_, el) => {
-      const $e = $(el);
-      return $e.find('[role="heading"]').length > 0 && $e.text().length > 20 && $e.text().length < 500;
-    });
-    containers.each((_, el) => {
+    $('div[data-hveid]').each((_, el) => {
       const $el = $(el);
-      const name = $el.find('[role="heading"] span').first().text().trim() || $el.find('[role="heading"]').first().text().trim();
-      if (name && name.length > 2 && name.length < 80) {
-        const text = $el.text();
-        const phoneMatch = text.match(/(?:0[12]\d[\s\-]?\d{3,4}[\s\-]?\d{3,4}|\+20[\s\-]?\d{2}[\s\-]?\d{3,4}[\s\-]?\d{3,4})/);
-        const ratingMatch = text.match(/(\d\.\d)\s*/);
-        businesses.push({
-          name,
-          phone: phoneMatch ? phoneMatch[0] : '',
-          address: '',
-          rating: ratingMatch ? parseFloat(ratingMatch[1]) : 0,
-          category: '',
-          website: '',
-        });
+      const biz = extractBizFromCard($, $el);
+      if (biz && biz.name && !seenNames.has(biz.name.toLowerCase())) {
+        seenNames.add(biz.name.toLowerCase());
+        businesses.push(biz);
       }
     });
   }
 
-  // Strategy 3: Brute-force text extraction for phone numbers + nearby names
+  // Strategy 3: Look for result containers with headings
+  if (businesses.length === 0) {
+    $('[role="heading"]').each((_, el) => {
+      const $heading = $(el);
+      const name = $heading.find('span').first().text().trim() || $heading.text().trim();
+      if (!name || name.length < 3 || name.length > 80 || seenNames.has(name.toLowerCase())) return;
+      
+      // Walk up to find the container card
+      const $container = $heading.closest('div').parent();
+      const text = $container.text();
+      const phoneMatch = text.match(/(?:0[12]\d[\s\-]?\d{3,4}[\s\-]?\d{3,4}|\+20[\s\-]?\d{1,2}[\s\-]?\d{3,4}[\s\-]?\d{3,4})/);
+      const ratingMatch = text.match(/(\d\.\d)\s*/);
+      
+      seenNames.add(name.toLowerCase());
+      businesses.push({
+        name,
+        phone: phoneMatch ? phoneMatch[0] : '',
+        address: '',
+        rating: ratingMatch ? parseFloat(ratingMatch[1]) : 0,
+        category: '',
+        website: '',
+      });
+    });
+  }
+
+  // Strategy 4: Links to Google Maps places
+  if (businesses.length === 0) {
+    $('a[href*="/maps/place/"]').each((_, el) => {
+      const $a = $(el);
+      const ariaLabel = $a.attr('aria-label') || '';
+      const name = ariaLabel || $a.text().trim();
+      if (!name || name.length < 3 || name.length > 80 || seenNames.has(name.toLowerCase())) return;
+      
+      const $card = $a.closest('div[data-cid], div[data-hveid]').length
+        ? $a.closest('div[data-cid], div[data-hveid]')
+        : $a.parent().parent();
+      const cardText = $card.text();
+      const phoneMatch = cardText.match(/(?:0[12]\d[\s\-]?\d{3,4}[\s\-]?\d{3,4}|\+20[\s\-]?\d{1,2}[\s\-]?\d{3,4}[\s\-]?\d{3,4})/);
+      
+      seenNames.add(name.toLowerCase());
+      businesses.push({
+        name,
+        phone: phoneMatch ? phoneMatch[0] : '',
+        address: '',
+        rating: 0,
+        category: '',
+        website: '',
+      });
+    });
+  }
+
+  // Strategy 5: Brute-force text extraction for phone numbers + nearby names
   if (businesses.length === 0) {
     const bodyText = $('body').text();
-    const segments = bodyText.split(/\n|\r/).filter(s => s.trim().length > 3);
-    const phoneRegex = /(?:0[12]\d[\s\-]?\d{3,4}[\s\-]?\d{3,4}|\+20[\s\-]?\d{2}[\s\-]?\d{3,4}[\s\-]?\d{3,4})/g;
+    const phoneRegex = /(?:0[12]\d[\s\-]?\d{3,4}[\s\-]?\d{3,4}|\+20[\s\-]?\d{1,2}[\s\-]?\d{3,4}[\s\-]?\d{3,4})/g;
     let match;
     while ((match = phoneRegex.exec(bodyText)) !== null) {
-      const before = bodyText.substring(Math.max(0, match.index - 120), match.index);
+      const before = bodyText.substring(Math.max(0, match.index - 150), match.index);
       const lines = before.split(/[·\n\r|]/).filter(s => s.trim().length > 2);
       const nameLine = lines[lines.length - 1]?.trim();
-      if (nameLine && nameLine.length > 2 && nameLine.length < 80) {
+      if (nameLine && nameLine.length > 2 && nameLine.length < 80 && !seenNames.has(nameLine.toLowerCase())) {
+        seenNames.add(nameLine.toLowerCase());
         businesses.push({
           name: nameLine,
           phone: match[0],
@@ -499,6 +718,22 @@ function parseLocalSearchHTML(html) {
           category: '',
           website: '',
         });
+      }
+    }
+  }
+
+  // Strategy 6: Extract from raw HTML/JS data (Google embeds data in script tags)
+  if (businesses.length === 0) {
+    const scriptText = $('script').map((_, el) => $(el).html()).get().join('\n');
+    // Look for patterns like ["Business Name", ... "phone_number"]
+    const namePhoneRegex = /\["([^"]{3,60})"[^\]]{0,200}?"(0[12]\d{8,10})"/g;
+    let npMatch;
+    while ((npMatch = namePhoneRegex.exec(scriptText)) !== null) {
+      const name = npMatch[1].trim();
+      const phone = npMatch[2];
+      if (/[\u0600-\u06FFa-zA-Z]/.test(name) && !seenNames.has(name.toLowerCase())) {
+        seenNames.add(name.toLowerCase());
+        businesses.push({ name, phone, address: '', rating: 0, category: '', website: '' });
       }
     }
   }

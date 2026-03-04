@@ -199,7 +199,6 @@ export default function DataCollectionPage() {
   const [gmapsQuery, setGmapsQuery] = useState('');
   const [gmapsCity, setGmapsCity] = useState('القاهرة');
   const [gmapsArea, setGmapsArea] = useState('');
-  const [gmapsMaxResults] = useState('10000');
   const [comprehensive, setComprehensive] = useState(false);
   const [queriesRun, setQueriesRun] = useState(0);
   const [queryStats, setQueryStats] = useState<{ query: string; found: number; new: number }[]>([]);
@@ -217,7 +216,7 @@ export default function DataCollectionPage() {
   const selectedCount = results.filter(r => r.selected).length;
   const salesUsers = users.filter(u => u.role === 'sales' || u.role === 'admin');
 
-  // Search Google Maps — uses SSE streaming for real-time results
+  // Search Google Maps — uses POST endpoint with frontend-managed batching for comprehensive search
   const searchGMaps = async () => {
     setIsSearching(true);
     setSaveResult(null);
@@ -230,108 +229,126 @@ export default function DataCollectionPage() {
 
     const selectedArea = gmapsArea && gmapsArea !== 'all' ? gmapsArea : '';
 
-    // Try SSE streaming first (works with local server + puppeteer)
-    // Falls back to POST endpoint (works on Netlify with HTTP scraping)
-    const params = new URLSearchParams({
-      searchQuery: gmapsQuery || '',
-      city: gmapsCity,
-      industry,
-      maxResults: gmapsMaxResults,
-      comprehensive: String(comprehensive),
-      ...(selectedArea ? { area: selectedArea } : {}),
-    });
+    try {
+      if (comprehensive && !selectedArea) {
+        // Comprehensive search across all areas — batch from frontend to avoid timeout
+        const areas = CITY_AREAS[gmapsCity] || [];
+        const rawTerm = gmapsQuery || industry;
 
-    const eventSource = new EventSource(`/api/scrape/gmaps/stream?${params.toString()}`);
-    let gotData = false;
+        const allLeads: ScrapedLead[] = [];
+        const seenNames = new Set<string>();
+        const stats: { query: string; found: number; new: number }[] = [];
 
-    eventSource.addEventListener('status', (e: MessageEvent) => {
-      gotData = true;
-      const data = JSON.parse(e.data);
-      setProgressMsg(data.message);
-    });
+        for (let i = 0; i < areas.length; i++) {
+          const area = areas[i];
+          const query = gmapsQuery
+            ? `${gmapsQuery} في ${area}`
+            : `${rawTerm} في ${area}`;
 
-    eventSource.addEventListener('progress', (e: MessageEvent) => {
-      const data = JSON.parse(e.data);
-      setProgressMsg(data.message);
-      if (data.totalQueries > 1) {
-        setProgressPercent(Math.round(((data.queryIndex) / data.totalQueries) * 100));
+          setProgressMsg(`${i + 1}/${areas.length} — ${area}`);
+          setProgressPercent(Math.round((i / areas.length) * 100));
+
+          try {
+            const res = await fetch('/api/scrape/gmaps/search-single', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ query }),
+            });
+
+            if (res.ok) {
+              const data = await res.json();
+              const newLeads: ScrapedLead[] = [];
+              for (const lead of data.leads || []) {
+                const key = (lead.company_name || '').toLowerCase().trim();
+                if (key && !seenNames.has(key)) {
+                  seenNames.add(key);
+                  newLeads.push({
+                    ...lead,
+                    industry: lead.industry || industry,
+                    city: area,
+                    selected: !lead.alreadySaved,
+                  });
+                }
+              }
+              allLeads.push(...newLeads);
+              setResults([...allLeads]);
+              stats.push({ query: `${rawTerm} في ${area}`, found: data.total || 0, new: newLeads.length });
+            } else {
+              stats.push({ query: `${rawTerm} في ${area}`, found: 0, new: 0 });
+            }
+          } catch {
+            stats.push({ query: `${rawTerm} في ${area}`, found: 0, new: 0 });
+          }
+
+          setQueryStats([...stats]);
+          setQueriesRun(i + 1);
+        }
+
+        // Final stats
+        setProgressPercent(100);
+        const withPhone = allLeads.filter(l => l.phone).length;
+        const newLeads = allLeads.filter(l => !l.alreadySaved).length;
+        const alreadySaved = allLeads.filter(l => l.alreadySaved).length;
+        setSearchStats({
+          total: allLeads.length,
+          totalScraped: allLeads.length,
+          withPhone,
+          newLeads,
+          alreadySaved,
+          queriesRun: areas.length,
+          source: 'Google Maps (بحث شامل)',
+        });
+        toast.success(language === 'ar'
+          ? `تم العثور على ${newLeads} عميل جديد`
+          : `Found ${newLeads} new leads`);
+      } else {
+        // Single search or comprehensive within specific area
+        const res = await fetch('/api/scrape/gmaps/search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            searchQuery: gmapsQuery || '',
+            city: gmapsCity,
+            industry,
+            area: selectedArea || undefined,
+            comprehensive: comprehensive && !!selectedArea,
+          }),
+        });
+
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || 'خطأ في البحث');
+        }
+
+        const data = await res.json();
+        const leads: ScrapedLead[] = (data.leads || []).map((r: ScrapedLead & { alreadySaved?: boolean }) => ({
+          ...r,
+          selected: !r.alreadySaved,
+        }));
+
+        setResults(leads);
+        setProgressPercent(100);
+        setSearchStats({
+          total: data.total,
+          totalScraped: data.total,
+          withPhone: data.withPhone,
+          newLeads: data.newLeads,
+          alreadySaved: data.alreadySaved,
+          queriesRun: 1,
+          source: comprehensive ? 'Google Maps (بحث شامل)' : 'Google Maps',
+        });
+        const newCount = data.newLeads ?? data.total;
+        toast.success(language === 'ar'
+          ? `تم العثور على ${newCount} عميل جديد`
+          : `Found ${newCount} new leads`);
       }
-    });
-
-    eventSource.addEventListener('results', (e: MessageEvent) => {
-      const data = JSON.parse(e.data);
-      const newLeads: ScrapedLead[] = data.leads.map((r: ScrapedLead & { alreadySaved?: boolean }) => ({
-        ...r,
-        selected: !r.alreadySaved,
-      }));
-      setResults(prev => [...prev, ...newLeads]);
-      if (data.areaStat) {
-        setQueryStats(prev => [...prev, data.areaStat]);
-      }
-    });
-
-    eventSource.addEventListener('stats', (e: MessageEvent) => {
-      const data = JSON.parse(e.data);
-      setSearchStats({
-        total: data.withPhone,
-        totalScraped: data.totalScraped,
-        withPhone: data.withPhone,
-        newLeads: data.newLeads,
-        alreadySaved: data.alreadySaved,
-        queriesRun: data.queriesCompleted,
-        source: comprehensive ? 'Google Maps (بحث شامل)' : 'Google Maps',
-      });
-      setQueriesRun(data.queriesCompleted);
-      if (data.totalQueries > 1) {
-        setProgressPercent(Math.round((data.queriesCompleted / data.totalQueries) * 100));
-      }
-    });
-
-    eventSource.addEventListener('areaError', (e: MessageEvent) => {
-      const data = JSON.parse(e.data);
-      setQueryStats(prev => [...prev, { query: data.query, found: 0, new: 0 }]);
-    });
-
-    eventSource.addEventListener('done', (e: MessageEvent) => {
-      const data = JSON.parse(e.data);
-      eventSource.close();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'خطأ في البحث';
+      toast.error(msg);
+    } finally {
       setIsSearching(false);
       setProgressMsg('');
-      setProgressPercent(100);
-      setQueriesRun(data.queriesRun || 1);
-      setSearchStats({
-        total: data.total,
-        totalScraped: data.totalScraped,
-        withPhone: data.withPhone,
-        newLeads: data.newLeads,
-        alreadySaved: data.alreadySaved,
-        queriesRun: data.queriesRun,
-        source: comprehensive ? 'Google Maps (بحث شامل)' : 'Google Maps',
-      });
-      const newCount = data.newLeads ?? data.total;
-      toast.success(language === 'ar'
-        ? `تم العثور على ${newCount} عميل جديد`
-        : `Found ${newCount} new leads`);
-    });
-
-    eventSource.addEventListener('error', (e: MessageEvent) => {
-      try {
-        const data = JSON.parse(e.data);
-        toast.error(data.error || 'خطأ في البحث');
-      } catch {
-        // SSE connection error
-      }
-      eventSource.close();
-      setIsSearching(false);
-      setProgressMsg('');
-    });
-
-    eventSource.onerror = () => {
-      if (eventSource.readyState === EventSource.CLOSED) return;
-      eventSource.close();
-      setIsSearching(false);
-      setProgressMsg('');
-    };
+    }
   };
 
   // Save selected leads to database
