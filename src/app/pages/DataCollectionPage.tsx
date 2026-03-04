@@ -290,11 +290,20 @@ export default function DataCollectionPage() {
           setProgressMsg(`${i + 1}/${queries.length} — ${label}`);
           setProgressPercent(Math.round((i / queries.length) * 100));
 
+          // Add random delay between requests (1.5–4s) to distribute load and avoid rate-limiting
+          if (i > 0) {
+            const delay = 1500 + Math.floor(Math.random() * 2500);
+            await new Promise(r => setTimeout(r, delay));
+          }
+
+          // Rotate engine per query: 1=brave, 2=google, 3=startpage
+          const engineHint = (i % 3) + 1;
+
           try {
             const res = await fetch('/api/scrape/gmaps/search-single', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ query }),
+              body: JSON.stringify({ query, engineHint }),
             });
 
             if (res.ok) {
