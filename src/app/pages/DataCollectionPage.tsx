@@ -217,26 +217,27 @@ export default function DataCollectionPage() {
     setSearchStats(null);
     setQueryStats([]);
     setQueriesRun(0);
-    setProgressMsg(language === 'ar' ? 'جاري الاتصال...' : 'Connecting...');
+    setProgressMsg(language === 'ar' ? 'جاري البحث...' : 'Searching...');
     setProgressPercent(0);
 
     const selectedArea = gmapsArea && gmapsArea !== 'all' ? gmapsArea : '';
-    const query = gmapsQuery || `${industry} في ${selectedArea || gmapsCity}`;
-    const maxRes = parseInt(gmapsMaxResults) || 40;
 
-    // Build SSE URL with query params
+    // Try SSE streaming first (works with local server + puppeteer)
+    // Falls back to POST endpoint (works on Netlify with HTTP scraping)
     const params = new URLSearchParams({
-      searchQuery: query,
+      searchQuery: gmapsQuery || '',
       city: gmapsCity,
       industry,
-      maxResults: String(maxRes),
+      maxResults: gmapsMaxResults,
       comprehensive: String(comprehensive),
       ...(selectedArea ? { area: selectedArea } : {}),
     });
 
     const eventSource = new EventSource(`/api/scrape/gmaps/stream?${params.toString()}`);
+    let gotData = false;
 
     eventSource.addEventListener('status', (e: MessageEvent) => {
+      gotData = true;
       const data = JSON.parse(e.data);
       setProgressMsg(data.message);
     });
@@ -255,7 +256,6 @@ export default function DataCollectionPage() {
         ...r,
         selected: !r.alreadySaved,
       }));
-      // Append new results to existing
       setResults(prev => [...prev, ...newLeads]);
       if (data.areaStat) {
         setQueryStats(prev => [...prev, data.areaStat]);
@@ -302,8 +302,8 @@ export default function DataCollectionPage() {
       });
       const newCount = data.newLeads ?? data.total;
       toast.success(language === 'ar'
-        ? `تم العثور على ${newCount} عميل جديد من Google Maps`
-        : `Found ${newCount} new leads from Google Maps`);
+        ? `تم العثور على ${newCount} عميل جديد`
+        : `Found ${newCount} new leads`);
     });
 
     eventSource.addEventListener('error', (e: MessageEvent) => {
@@ -319,7 +319,6 @@ export default function DataCollectionPage() {
     });
 
     eventSource.onerror = () => {
-      // This fires when the stream ends or on connection error
       if (eventSource.readyState === EventSource.CLOSED) return;
       eventSource.close();
       setIsSearching(false);
