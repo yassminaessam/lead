@@ -230,23 +230,65 @@ export default function DataCollectionPage() {
     const selectedArea = gmapsArea && gmapsArea !== 'all' ? gmapsArea : '';
 
     try {
-      if (comprehensive && !selectedArea) {
-        // Comprehensive search across all areas — batch from frontend to avoid timeout
-        const areas = CITY_AREAS[gmapsCity] || [];
-        const rawTerm = gmapsQuery || industry;
+      if (comprehensive) {
+        // Comprehensive search — always batch from frontend to avoid Netlify timeout
+        // Step 1: Get the list of queries to run from the server
+        let queries: string[] = [];
+        let queryLabels: string[] = [];
 
+        if (!selectedArea) {
+          // All areas — build queries locally
+          const areas = CITY_AREAS[gmapsCity] || [];
+          const rawTerm = gmapsQuery || industry;
+          queries = areas.map(a => gmapsQuery ? `${gmapsQuery} في ${a}` : `${rawTerm} في ${a}`);
+          queryLabels = areas;
+        } else {
+          // Specific area — get sub-zone queries from server
+          try {
+            const buildRes = await fetch('/api/scrape/gmaps/build-queries', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                searchQuery: gmapsQuery || '',
+                city: gmapsCity,
+                industry,
+                area: selectedArea,
+                comprehensive: true,
+              }),
+            });
+            if (buildRes.ok) {
+              const buildData = await buildRes.json();
+              queries = buildData.queries || [];
+              queryLabels = queries.map((q: string) => q.substring(0, 40));
+            }
+          } catch {
+            // Fallback: use basic queries
+            const rawTerm = gmapsQuery || industry;
+            queries = [
+              `${rawTerm} في ${selectedArea}`,
+              `${rawTerm} ${selectedArea}`,
+              `${rawTerm} في ${selectedArea} ${gmapsCity}`,
+            ];
+            queryLabels = queries;
+          }
+        }
+
+        if (queries.length === 0) {
+          throw new Error(language === 'ar' ? 'لا توجد استعلامات للبحث' : 'No queries to search');
+        }
+
+        // Step 2: Run queries one by one via search-single
         const allLeads: ScrapedLead[] = [];
         const seenNames = new Set<string>();
         const stats: { query: string; found: number; new: number }[] = [];
+        let debugInfo: Record<string, unknown> | null = null;
 
-        for (let i = 0; i < areas.length; i++) {
-          const area = areas[i];
-          const query = gmapsQuery
-            ? `${gmapsQuery} في ${area}`
-            : `${rawTerm} في ${area}`;
+        for (let i = 0; i < queries.length; i++) {
+          const query = queries[i];
+          const label = queryLabels[i] || query.substring(0, 40);
 
-          setProgressMsg(`${i + 1}/${areas.length} — ${area}`);
-          setProgressPercent(Math.round((i / areas.length) * 100));
+          setProgressMsg(`${i + 1}/${queries.length} — ${label}`);
+          setProgressPercent(Math.round((i / queries.length) * 100));
 
           try {
             const res = await fetch('/api/scrape/gmaps/search-single', {
@@ -257,6 +299,9 @@ export default function DataCollectionPage() {
 
             if (res.ok) {
               const data = await res.json();
+              // Capture debug info from first query for diagnostics
+              if (i === 0 && data._debug) debugInfo = data._debug;
+
               const newLeads: ScrapedLead[] = [];
               for (const lead of data.leads || []) {
                 const key = (lead.company_name || '').toLowerCase().trim();
@@ -265,19 +310,19 @@ export default function DataCollectionPage() {
                   newLeads.push({
                     ...lead,
                     industry: lead.industry || industry,
-                    city: area,
+                    city: selectedArea || label,
                     selected: !lead.alreadySaved,
                   });
                 }
               }
               allLeads.push(...newLeads);
               setResults([...allLeads]);
-              stats.push({ query: `${rawTerm} في ${area}`, found: data.total || 0, new: newLeads.length });
+              stats.push({ query: label, found: data.total || 0, new: newLeads.length });
             } else {
-              stats.push({ query: `${rawTerm} في ${area}`, found: 0, new: 0 });
+              stats.push({ query: label, found: 0, new: 0 });
             }
           } catch {
-            stats.push({ query: `${rawTerm} في ${area}`, found: 0, new: 0 });
+            stats.push({ query: label, found: 0, new: 0 });
           }
 
           setQueryStats([...stats]);
@@ -287,31 +332,35 @@ export default function DataCollectionPage() {
         // Final stats
         setProgressPercent(100);
         const withPhone = allLeads.filter(l => l.phone).length;
-        const newLeads = allLeads.filter(l => !l.alreadySaved).length;
+        const newCount = allLeads.filter(l => !l.alreadySaved).length;
         const alreadySaved = allLeads.filter(l => l.alreadySaved).length;
         setSearchStats({
           total: allLeads.length,
           totalScraped: allLeads.length,
           withPhone,
-          newLeads,
+          newLeads: newCount,
           alreadySaved,
-          queriesRun: areas.length,
+          queriesRun: queries.length,
           source: 'Google Maps (بحث شامل)',
         });
-        toast.success(language === 'ar'
-          ? `تم العثور على ${newLeads} عميل جديد`
-          : `Found ${newLeads} new leads`);
+
+        if (allLeads.length === 0 && debugInfo) {
+          console.warn('[LeadEngine] Debug info from search:', debugInfo);
+          toast.error(language === 'ar'
+            ? `لم يتم العثور على نتائج — Debug: strategies=${JSON.stringify((debugInfo as Record<string, unknown>).strategies)}, htmlLengths=${JSON.stringify((debugInfo as Record<string, unknown>).htmlLengths)}, statusCodes=${JSON.stringify((debugInfo as Record<string, unknown>).statusCodes)}`
+            : `No results found — Debug: ${JSON.stringify(debugInfo)}`);
+        } else {
+          toast.success(language === 'ar'
+            ? `تم العثور على ${newCount} عميل جديد`
+            : `Found ${newCount} new leads`);
+        }
       } else {
-        // Single search or comprehensive within specific area
-        const res = await fetch('/api/scrape/gmaps/search', {
+        // Single (non-comprehensive) search
+        const res = await fetch('/api/scrape/gmaps/search-single', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            searchQuery: gmapsQuery || '',
-            city: gmapsCity,
-            industry,
-            area: selectedArea || undefined,
-            comprehensive: comprehensive && !!selectedArea,
+            query: gmapsQuery || `${industry} في ${selectedArea || gmapsCity}`,
           }),
         });
 
@@ -323,6 +372,8 @@ export default function DataCollectionPage() {
         const data = await res.json();
         const leads: ScrapedLead[] = (data.leads || []).map((r: ScrapedLead & { alreadySaved?: boolean }) => ({
           ...r,
+          industry: r.industry || industry,
+          city: selectedArea || gmapsCity,
           selected: !r.alreadySaved,
         }));
 
@@ -332,15 +383,23 @@ export default function DataCollectionPage() {
           total: data.total,
           totalScraped: data.total,
           withPhone: data.withPhone,
-          newLeads: data.newLeads,
-          alreadySaved: data.alreadySaved,
+          newLeads: leads.filter(l => !l.alreadySaved).length,
+          alreadySaved: leads.filter(l => l.alreadySaved).length,
           queriesRun: 1,
-          source: comprehensive ? 'Google Maps (بحث شامل)' : 'Google Maps',
+          source: 'Google Maps',
         });
-        const newCount = data.newLeads ?? data.total;
-        toast.success(language === 'ar'
-          ? `تم العثور على ${newCount} عميل جديد`
-          : `Found ${newCount} new leads`);
+
+        if (leads.length === 0 && data._debug) {
+          console.warn('[LeadEngine] Debug info:', data._debug);
+          toast.error(language === 'ar'
+            ? `لم يتم العثور على نتائج — Status: ${JSON.stringify(data._debug.statusCodes)}, HTML: ${JSON.stringify(data._debug.htmlLengths)}`
+            : `No results — Debug: ${JSON.stringify(data._debug)}`);
+        } else {
+          const newCount = leads.filter(l => !l.alreadySaved).length;
+          toast.success(language === 'ar'
+            ? `تم العثور على ${newCount} عميل جديد`
+            : `Found ${newCount} new leads`);
+        }
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'خطأ في البحث';

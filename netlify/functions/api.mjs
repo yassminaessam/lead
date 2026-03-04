@@ -86,13 +86,39 @@ app.post('/api/scrape/save', async (req, res) => {
   }
 });
 
+// Build queries endpoint — returns query list for frontend-managed batching
+app.post('/api/scrape/gmaps/build-queries', async (req, res) => {
+  try {
+    const { searchQuery, city, industry, area, comprehensive: comp } = req.body;
+    const selectedArea = area && area !== 'all' ? area : '';
+    const rawTerm = searchQuery
+      ? searchQuery.replace(new RegExp(`(في|فى|ب|بـ)\\s*(${(selectedArea||city||'').replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}|${(city||'').replace(/[.*+?^${}()|[\]\\]/g,'\\$&')})`, 'g'), '').trim()
+      : (industry || '');
+    const baseTerm = searchQuery || `${industry || ''} في ${selectedArea || city || ''}`.trim();
+
+    let queries = [baseTerm];
+    if (comp) {
+      if (selectedArea) {
+        queries = buildAreaQueries(rawTerm, selectedArea, city);
+      } else if (city) {
+        const areas = CITY_AREAS_SERVER[city] || [];
+        queries = [baseTerm, ...areas.map(a => `${rawTerm} في ${a}`)];
+      }
+      queries = [...new Set(queries.filter(q => q.trim()))];
+    }
+    res.json({ queries });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Single-query search endpoint (used by frontend for batched comprehensive search)
 app.post('/api/scrape/gmaps/search-single', async (req, res) => {
   try {
     const { query } = req.body;
     if (!query) return res.status(400).json({ error: 'query is required' });
 
-    const results = await scrapeGoogleLocalSearch(query);
+    const { businesses: results, _debug } = await scrapeGoogleLocalSearch(query);
 
     // Check existing leads
     const leads = results.map(biz => ({
@@ -122,6 +148,7 @@ app.post('/api/scrape/gmaps/search-single', async (req, res) => {
       })),
       total: leads.length,
       withPhone: leads.filter(l => l.phone).length,
+      _debug,
     });
   } catch (err) {
     console.error('[scrape/search-single] Error:', err);
@@ -160,7 +187,7 @@ app.post('/api/scrape/gmaps/search', async (req, res) => {
 
     for (const query of queries) {
       try {
-        const results = await scrapeGoogleLocalSearch(query);
+        const { businesses: results } = await scrapeGoogleLocalSearch(query);
         for (const biz of results) {
           const key = (biz.name || '').toLowerCase().trim();
           if (key && !seenNames.has(key)) {
@@ -247,7 +274,7 @@ app.get('/api/scrape/gmaps/stream', async (req, res) => {
 
   for (const query of queries) {
     try {
-      const results = await scrapeGoogleLocalSearch(query);
+      const { businesses: results } = await scrapeGoogleLocalSearch(query);
       const newLeads = [];
       for (const biz of results) {
         const key = (biz.name || '').toLowerCase().trim();
@@ -501,17 +528,22 @@ function buildGoogleHeaders() {
 
 async function scrapeGoogleLocalSearch(query) {
   let businesses = [];
+  const _debug = { strategies: [], htmlLengths: {}, statusCodes: {}, error: null };
 
   // Strategy A: Google local search (tbm=lcl)
   try {
     const params = new URLSearchParams({ q: query, tbm: 'lcl', hl: 'ar', gl: 'eg', num: '20' });
     const url = `https://www.google.com/search?${params}`;
     const resp = await fetch(url, { headers: buildGoogleHeaders(), redirect: 'follow' });
+    _debug.statusCodes.A = resp.status;
     if (resp.ok) {
       const html = await resp.text();
+      _debug.htmlLengths.A = html.length;
       businesses = parseLocalSearchHTML(html);
+      if (businesses.length > 0) _debug.strategies.push('A-lcl');
     }
   } catch (err) {
+    _debug.error = `A: ${err.message}`;
     console.error('[scrape] Strategy A (lcl) failed:', err.message);
   }
 
@@ -521,11 +553,15 @@ async function scrapeGoogleLocalSearch(query) {
       const params = new URLSearchParams({ q: query, hl: 'ar', gl: 'eg', num: '20' });
       const url = `https://www.google.com/search?${params}`;
       const resp = await fetch(url, { headers: buildGoogleHeaders(), redirect: 'follow' });
+      _debug.statusCodes.B = resp.status;
       if (resp.ok) {
         const html = await resp.text();
+        _debug.htmlLengths.B = html.length;
         businesses = parseLocalSearchHTML(html);
+        if (businesses.length > 0) _debug.strategies.push('B-regular');
       }
     } catch (err) {
+      _debug.error = `B: ${err.message}`;
       console.error('[scrape] Strategy B (regular) failed:', err.message);
     }
   }
@@ -535,11 +571,15 @@ async function scrapeGoogleLocalSearch(query) {
     try {
       const mapsUrl = `https://www.google.com/maps/search/${encodeURIComponent(query)}/?hl=ar`;
       const resp = await fetch(mapsUrl, { headers: buildGoogleHeaders(), redirect: 'follow' });
+      _debug.statusCodes.C = resp.status;
       if (resp.ok) {
         const html = await resp.text();
+        _debug.htmlLengths.C = html.length;
         businesses = parseGoogleMapsHTML(html);
+        if (businesses.length > 0) _debug.strategies.push('C-maps');
       }
     } catch (err) {
+      _debug.error = `C: ${err.message}`;
       console.error('[scrape] Strategy C (maps) failed:', err.message);
     }
   }
@@ -550,16 +590,20 @@ async function scrapeGoogleLocalSearch(query) {
       const params = new URLSearchParams({ q: query, tbm: 'lcl', hl: 'ar' });
       const url = `https://www.google.com.eg/search?${params}`;
       const resp = await fetch(url, { headers: buildGoogleHeaders(), redirect: 'follow' });
+      _debug.statusCodes.D = resp.status;
       if (resp.ok) {
         const html = await resp.text();
+        _debug.htmlLengths.D = html.length;
         businesses = parseLocalSearchHTML(html);
+        if (businesses.length > 0) _debug.strategies.push('D-eg');
       }
     } catch (err) {
+      _debug.error = `D: ${err.message}`;
       console.error('[scrape] Strategy D (google.com.eg) failed:', err.message);
     }
   }
 
-  return businesses;
+  return { businesses, _debug };
 }
 
 // Parse Google Maps page HTML for business data embedded in JS
