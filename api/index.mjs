@@ -1,25 +1,24 @@
 import express from 'express';
 import cors from 'cors';
 import mongoose from 'mongoose';
-import serverless from 'serverless-http';
 import * as cheerio from 'cheerio';
 
 // Import models
-import '../../server/src/models/User.js';
-import '../../server/src/models/Lead.js';
-import '../../server/src/models/Call.js';
-import '../../server/src/models/Meeting.js';
-import '../../server/src/models/Activity.js';
-import '../../server/src/models/Settings.js';
+import '../server/src/models/User.js';
+import '../server/src/models/Lead.js';
+import '../server/src/models/Call.js';
+import '../server/src/models/Meeting.js';
+import '../server/src/models/Activity.js';
+import '../server/src/models/Settings.js';
 
 // Import routes
-import authRouter from '../../server/src/routes/auth.js';
-import leadsRouter from '../../server/src/routes/leads.js';
-import callsRouter from '../../server/src/routes/calls.js';
-import meetingsRouter from '../../server/src/routes/meetings.js';
-import usersRouter from '../../server/src/routes/users.js';
-import activitiesRouter from '../../server/src/routes/activities.js';
-import settingsRouter from '../../server/src/routes/settings.js';
+import authRouter from '../server/src/routes/auth.js';
+import leadsRouter from '../server/src/routes/leads.js';
+import callsRouter from '../server/src/routes/calls.js';
+import meetingsRouter from '../server/src/routes/meetings.js';
+import usersRouter from '../server/src/routes/users.js';
+import activitiesRouter from '../server/src/routes/activities.js';
+import settingsRouter from '../server/src/routes/settings.js';
 
 const app = express();
 
@@ -27,7 +26,23 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
-// API routes — mounted at root because Netlify redirects /api/* → /.netlify/functions/api/*
+// MongoDB connection (reuse across invocations)
+let isConnected = false;
+async function connectDB() {
+  if (isConnected && mongoose.connection.readyState === 1) return;
+  await mongoose.connect(process.env.MONGODB_URI, {
+    serverApi: { version: '1', strict: true, deprecationErrors: true },
+  });
+  isConnected = true;
+}
+
+// Connect to DB before any route
+app.use(async (req, res, next) => {
+  try { await connectDB(); next(); }
+  catch (err) { res.status(500).json({ error: 'Database connection failed' }); }
+});
+
+// API routes
 app.use('/api/auth', authRouter);
 app.use('/api/leads', leadsRouter);
 app.use('/api/calls', callsRouter);
@@ -36,7 +51,7 @@ app.use('/api/users', usersRouter);
 app.use('/api/activities', activitiesRouter);
 app.use('/api/settings', settingsRouter);
 
-// Save scraped leads endpoint (extracted from scrape route to avoid puppeteer dependency)
+// Save scraped leads endpoint
 const Lead = mongoose.model('Lead');
 app.post('/api/scrape/save', async (req, res) => {
   try {
@@ -157,14 +172,13 @@ app.post('/api/scrape/gmaps/search-single', async (req, res) => {
   }
 });
 
-// Google Maps search via HTTP (serverless-compatible, no puppeteer)
+// Google Maps search via HTTP (serverless-compatible)
 app.post('/api/scrape/gmaps/search', async (req, res) => {
   try {
     const { searchQuery, city, industry, area, comprehensive } = req.body;
     const selectedArea = area && area !== 'all' ? area : '';
     const baseTerm = searchQuery || `${industry || ''} في ${selectedArea || city || ''}`.trim();
 
-    // Extract the search term (without location)
     const rawTerm = searchQuery
       ? searchQuery.replace(new RegExp(`(في|فى|ب|بـ)\\s*(${(selectedArea||city||'').replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}|${(city||'').replace(/[.*+?^${}()|[\]\\]/g,'\\$&')})`, 'g'), '').trim()
       : (industry || '');
@@ -211,7 +225,6 @@ app.post('/api/scrape/gmaps/search', async (req, res) => {
       }
     }
 
-    // Check for existing leads in DB
     const existingPhones = new Set();
     const phones = allResults.filter(r => r.phone).map(r => r.phone);
     if (phones.length > 0) {
@@ -236,105 +249,6 @@ app.post('/api/scrape/gmaps/search', async (req, res) => {
     console.error('[scrape/search] Error:', err);
     res.status(500).json({ error: err.message });
   }
-});
-
-// SSE wrapper endpoint — returns results as SSE events for frontend compatibility
-app.get('/api/scrape/gmaps/stream', async (req, res) => {
-  res.writeHead(200, {
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
-    'Connection': 'keep-alive',
-  });
-  const send = (event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
-
-  const { searchQuery, city, industry, area, comprehensive: compStr } = req.query;
-  const comprehensive = compStr === 'true';
-  const selectedArea = area && area !== 'all' ? area : '';
-  const baseTerm = searchQuery || `${industry || ''} في ${selectedArea || city || ''}`.trim();
-
-  // Extract the search term (without location)
-  const rawTerm = searchQuery
-    ? searchQuery.replace(new RegExp(`(في|فى|ب|بـ)\\s*(${(selectedArea||city||'').replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}|${(city||'').replace(/[.*+?^${}()|[\]\\]/g,'\\$&')})`, 'g'), '').trim()
-    : (industry || '');
-
-  let queries = [baseTerm];
-  if (comprehensive) {
-    if (selectedArea) {
-      queries = buildAreaQueries(rawTerm, selectedArea, city);
-    } else if (city) {
-      queries = [baseTerm, ...(CITY_AREAS_SERVER[city] || []).map(a => `${rawTerm} في ${a}`)];
-    }
-    queries = [...new Set(queries.filter(q => q.trim()))];
-  }
-
-  send('status', { message: comprehensive ? `بدء البحث الشامل — ${queries.length} استعلام` : 'جاري البحث...', totalQueries: queries.length });
-
-  const allResults = [];
-  const seenNames = new Set();
-  let queriesCompleted = 0;
-
-  for (const query of queries) {
-    try {
-      const { businesses: results } = await scrapeLocalSearch(query);
-      const newLeads = [];
-      for (const biz of results) {
-        const key = (biz.name || '').toLowerCase().trim();
-        if (key && !seenNames.has(key)) {
-          seenNames.add(key);
-          const lead = {
-            company_name: biz.name,
-            phone: (biz.phone || '').replace(/[\s\-]+/g, ''),
-            email: '',
-            website: biz.website || '',
-            industry: industry || biz.category || '',
-            city: selectedArea || city || '',
-            source: 'gmaps',
-            address: biz.address || '',
-            rating: biz.rating || 0,
-          };
-          allResults.push(lead);
-          newLeads.push(lead);
-        }
-      }
-
-      // Check duplicates for this batch
-      const phones = newLeads.filter(l => l.phone).map(l => l.phone);
-      const existingPhones = new Set();
-      if (phones.length > 0) {
-        const existing = await Lead.find({ phone: { $in: phones } }, 'phone');
-        existing.forEach(e => existingPhones.add(e.phone));
-      }
-      const leadsWithStatus = newLeads.map(l => ({ ...l, alreadySaved: l.phone ? existingPhones.has(l.phone) : false }));
-      if (leadsWithStatus.length > 0) {
-        send('results', { leads: leadsWithStatus, areaStat: { query, found: results.length, new: leadsWithStatus.filter(l => !l.alreadySaved).length } });
-      }
-    } catch (err) {
-      send('areaError', { query, error: err.message });
-    }
-
-    queriesCompleted++;
-    if (queries.length > 1) {
-      send('progress', { message: `${queriesCompleted}/${queries.length} — ${query}`, queryIndex: queriesCompleted, totalQueries: queries.length });
-    }
-  }
-
-  // Check all duplicates
-  const allPhones = allResults.filter(r => r.phone).map(r => r.phone);
-  const existAll = new Set();
-  if (allPhones.length > 0) {
-    const ex = await Lead.find({ phone: { $in: allPhones } }, 'phone');
-    ex.forEach(e => existAll.add(e.phone));
-  }
-
-  send('done', {
-    total: allResults.length,
-    totalScraped: allResults.length,
-    withPhone: allResults.filter(r => r.phone).length,
-    newLeads: allResults.filter(r => !existAll.has(r.phone)).length,
-    alreadySaved: allResults.filter(r => existAll.has(r.phone)).length,
-    queriesRun: queriesCompleted,
-  });
-  res.end();
 });
 
 // City areas for comprehensive search
@@ -518,12 +432,10 @@ const PHONE_REGEX_G = new RegExp(PHONE_REGEX.source, 'g');
 let requestCounter = 0;
 
 // ====== MAIN SCRAPER ======
-// engineHint: 0 = auto-rotate, 1 = brave, 2 = google, 3 = startpage
 async function scrapeLocalSearch(query, engineHint = 0) {
   let businesses = [];
   const _debug = { strategies: [], htmlLengths: {}, statusCodes: {}, error: null, engineOrder: [] };
 
-  // Determine engine order based on rotation or hint
   const counter = engineHint > 0 ? engineHint - 1 : requestCounter++;
   const engineOrder = [
     ['google', 'brave', 'startpage'],
@@ -549,7 +461,6 @@ async function scrapeLocalSearch(query, engineHint = 0) {
       _debug.error = `${engine}: ${err.message}`;
       console.error(`[scrape] ${engine} failed:`, err.message);
     }
-    // Small delay between engine fallback attempts to avoid rapid-fire
     if (businesses.length === 0) {
       await new Promise(r => setTimeout(r, 500 + Math.floor(Math.random() * 1000)));
     }
@@ -581,12 +492,10 @@ async function scrapeBraveSearch(query, _debug) {
   _debug.htmlLengths.brave = html.length;
   const $ = cheerio.load(html);
 
-  // Process snippet cards — look for phone numbers
   $('.snippet, .fdb, [class*="result"]').each((_, el) => {
     const $card = $(el);
     const cardText = $card.text();
 
-    // Check for phone
     let phone = '';
     const $tel = $card.find('a[href^="tel:"]').first();
     if ($tel.length) {
@@ -598,15 +507,12 @@ async function scrapeBraveSearch(query, _debug) {
     }
     if (!phone || phone.length < 8 || seenPhones.has(phone.replace(/[\s\-]/g, ''))) return;
 
-    // Extract name from card title or bold text
     let name = '';
     const $title = $card.find('a[class*="heading"], .snippet-title, .title').first();
     if ($title.length) {
       const linkText = $title.text().trim();
-      // Remove domain parts (e.g. "sitename domain.com › path")
       const segments = linkText.split('›').map(s => s.trim()).filter(s => s.length > 2);
       name = segments.length > 1 ? segments[segments.length - 1] : segments[0] || '';
-      // Clean breadcrumb prefix
       name = name.replace(/^[\w\u0600-\u06FF_-]+\s{2,}/, '');
     }
     if (!name || name.length < 3) {
@@ -630,7 +536,6 @@ async function scrapeBraveSearch(query, _debug) {
     }
   });
 
-  // Brute-force fallback
   if (businesses.length === 0) {
     extractPhonesWithNames($('body').text(), businesses, seenNames);
   }
@@ -638,7 +543,7 @@ async function scrapeBraveSearch(query, _debug) {
   return businesses;
 }
 
-// ====== STARTPAGE SCRAPER (Google proxy — no blocking) ======
+// ====== STARTPAGE SCRAPER ======
 async function scrapeStartpage(query, _debug) {
   const businesses = [];
   const seenNames = new Set();
@@ -660,7 +565,6 @@ async function scrapeStartpage(query, _debug) {
   _debug.htmlLengths.startpage = html.length;
   const $ = cheerio.load(html);
 
-  // Startpage results are in .w-gl__result containers
   $('.w-gl__result, .result, [class*="result"]').each((_, el) => {
     const $result = $(el);
     const resultText = $result.text();
@@ -684,7 +588,6 @@ async function scrapeStartpage(query, _debug) {
     }
   });
 
-  // Brute-force fallback
   if (businesses.length === 0) {
     extractPhonesWithNames($('body').text(), businesses, seenNames);
   }
@@ -696,10 +599,9 @@ async function scrapeStartpage(query, _debug) {
 async function scrapeGoogleLocal(query, _debug) {
   const businesses = [];
 
-  // Generate a fresh, realistic set of cookies for each request
   const timestamp = Date.now();
   const nidValue = Math.floor(Math.random() * 999);
-  
+
   const headers = {
     'User-Agent': getRandomUA(),
     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
@@ -716,7 +618,6 @@ async function scrapeGoogleLocal(query, _debug) {
     'DNT': '1',
   };
 
-  // Try tbm=lcl (local results)
   const params = new URLSearchParams({ q: query, tbm: 'lcl', hl: 'ar', gl: 'eg', num: '20' });
   const resp = await fetch(`https://www.google.com/search?${params}`, { headers, redirect: 'follow' });
   _debug.statusCodes.google = resp.status;
@@ -728,7 +629,6 @@ async function scrapeGoogleLocal(query, _debug) {
   const $ = cheerio.load(html);
   const seenNames = new Set();
 
-  // Parse data-cid result cards
   $('[data-cid]').each((_, el) => {
     const $el = $(el);
     let name = $el.find('[role="heading"] span').first().text().trim()
@@ -760,7 +660,6 @@ async function scrapeGoogleLocal(query, _debug) {
     });
   });
 
-  // Fallback: headings
   if (businesses.length === 0) {
     $('[role="heading"]').each((_, el) => {
       const $heading = $(el);
@@ -774,7 +673,6 @@ async function scrapeGoogleLocal(query, _debug) {
     });
   }
 
-  // Brute-force phone extraction
   if (businesses.length === 0) {
     extractPhonesWithNames($('body').text(), businesses, seenNames);
   }
@@ -804,7 +702,7 @@ function extractPhonesWithNames(bodyText, businesses, seenNames) {
   }
 }
 
-// Test endpoint — diagnose scraping from cloud
+// Test endpoint
 app.get('/api/scrape/gmaps/test', async (req, res) => {
   try {
     const query = req.query.q || 'عيادات أسنان في مدينة نصر';
@@ -824,20 +722,5 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected' });
 });
 
-// MongoDB connection (reuse across invocations)
-let isConnected = false;
-async function connectDB() {
-  if (isConnected && mongoose.connection.readyState === 1) return;
-  await mongoose.connect(process.env.MONGODB_URI, {
-    serverApi: { version: '1', strict: true, deprecationErrors: true },
-  });
-  isConnected = true;
-}
-
-const serverlessHandler = serverless(app);
-
-export const handler = async (event, context) => {
-  context.callbackWaitsForEmptyEventLoop = false;
-  await connectDB();
-  return serverlessHandler(event, context);
-};
+// For Vercel — export the Express app as default
+export default app;
