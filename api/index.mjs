@@ -844,7 +844,7 @@ async function scrape140Online(query, maxPages = 5) {
 
       // Fetch additional pages
       for (let p = 2; p <= pagesToFetch + 1; p++) {
-        await new Promise(r => setTimeout(r, 800));
+        await new Promise(r => setTimeout(r, 200));
         try {
           const pageUrl = `${BASE}/class/pages/${cat.id}/${catName}/${p}`;
           const respP = await fetch(pageUrl, {
@@ -861,11 +861,10 @@ async function scrape140Online(query, maxPages = 5) {
     } catch { /* skip failed category */ }
   }
 
-  // Step 3: Fetch company detail pages in batches of 5 (limit to 50 companies)
-  const entriesToFetch = companyEntries.slice(0, 50);
-  const BATCH_SIZE = 5;
-  for (let i = 0; i < entriesToFetch.length; i += BATCH_SIZE) {
-    const batch = entriesToFetch.slice(i, i + BATCH_SIZE);
+  // Step 3: Fetch company detail pages in batches of 10 (no limit)
+  const BATCH_SIZE = 10;
+  for (let i = 0; i < companyEntries.length; i += BATCH_SIZE) {
+    const batch = companyEntries.slice(i, i + BATCH_SIZE);
     const results = await Promise.allSettled(batch.map(e => scrape140Company(e.url)));
     for (let j = 0; j < results.length; j++) {
       const r = results[j];
@@ -880,9 +879,9 @@ async function scrape140Online(query, maxPages = 5) {
         }
       }
     }
-    // Delay between batches
-    if (i + BATCH_SIZE < entriesToFetch.length) {
-      await new Promise(r => setTimeout(r, 800));
+    // Small delay between batches
+    if (i + BATCH_SIZE < companyEntries.length) {
+      await new Promise(r => setTimeout(r, 200));
     }
   }
 
@@ -895,7 +894,7 @@ app.post('/api/scrape/140online/search', async (req, res) => {
     const { query, maxPages } = req.body;
     if (!query) return res.status(400).json({ error: 'query is required' });
 
-    const pages = Math.min(Math.max(parseInt(maxPages) || 5, 1), 20);
+    const pages = Math.min(Math.max(parseInt(maxPages) || 5, 1), 85);
     const { businesses, total } = await scrape140Online(query, pages);
 
     // Check which phones already exist

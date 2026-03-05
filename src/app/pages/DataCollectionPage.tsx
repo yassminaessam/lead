@@ -672,7 +672,7 @@ export default function DataCollectionPage() {
               <input
                 type="range"
                 min="1"
-                max="20"
+                max="85"
                 value={maxPages}
                 onChange={e => setMaxPages(parseInt(e.target.value))}
                 className="w-full accent-emerald-600"
