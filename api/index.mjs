@@ -718,9 +718,17 @@ async function scrape140Company(companyUrl) {
 
     const data = { name: '', phone: '', address: '', website: '', category: '' };
 
-    // Extract name from page title or h1
-    const h1 = $('h1').first().text().trim();
-    if (h1) data.name = h1;
+    // Extract name from h3.tithenamcomp span (the actual company name element)
+    const nameSpan = $('h3.tithenamcomp span').first();
+    if (nameSpan.length) {
+      // Remove nested div (contains city) to get just the company name
+      nameSpan.find('div').remove();
+      data.name = nameSpan.text().trim();
+    }
+    if (!data.name) {
+      // Fallback: try meta og:title or page title
+      data.name = $('meta[property="og:title"]').attr('content') || $('title').text().trim() || '';
+    }
 
     // Parse detail table rows
     $('table tr, .company-info tr, #ContentPlaceHolder1_Table1 tr').each((_, row) => {
@@ -758,7 +766,7 @@ async function scrape140Online(query) {
   const BASE = 'https://www.140online.com';
   const businesses = [];
   const seenPhones = new Set();
-  const companyUrls = [];
+  const companyEntries = []; // { url, fallbackName }
 
   // Step 1: Use autocomplete API to find matching companies and categories
   const acResp = await fetch(`${BASE}/autoComplete.aspx?term=${encodeURIComponent(query)}`, {
@@ -771,7 +779,10 @@ async function scrape140Online(query) {
   for (const item of acResults) {
     if (item.cat === 'comp' && item.id) {
       const nameSlug = encodeURIComponent(item.nm || item.label || '');
-      companyUrls.push(`${BASE}/company/${item.id}/${nameSlug}/`);
+      companyEntries.push({
+        url: `${BASE}/company/${item.id}/${nameSlug}/`,
+        fallbackName: item.nm || item.label || '',
+      });
     }
   }
 
@@ -779,18 +790,25 @@ async function scrape140Online(query) {
   const categoryItems = acResults.filter(i => i.cat === 'clas').slice(0, 3);
   for (const cat of categoryItems) {
     try {
-      const catUrl = `${BASE}/Class/${cat.l || 'A'}${cat.id}/${encodeURIComponent(cat.label || '')}`;
+      const catUrl = `${BASE}/Class/${cat.id}/${encodeURIComponent(cat.label || '')}`;
       const catResp = await fetch(catUrl, {
         headers: { 'User-Agent': getRandomUA(), 'Accept': 'text/html' },
       });
       if (!catResp.ok) continue;
       const catHtml = await catResp.text();
       const $c = cheerio.load(catHtml);
-      $c('a[href*="/company/"]').each((_, el) => {
-        const href = $c(el).attr('href');
-        if (href && !href.includes('javascript:')) {
+      // Category pages use /Company.aspx?CompanyId=XX format
+      const seenIds = new Set(companyEntries.map(e => {
+        const m = e.url.match(/CompanyId=([^&]+)|company\/([^/]+)/);
+        return m ? (m[1] || m[2]) : '';
+      }));
+      $c('a[href*="CompanyId="]').each((_, el) => {
+        const href = $c(el).attr('href') || '';
+        const idMatch = href.match(/CompanyId=([^&]+)/);
+        if (idMatch && !seenIds.has(idMatch[1]) && !href.includes('AddCompany')) {
+          seenIds.add(idMatch[1]);
           const fullUrl = href.startsWith('http') ? href : `${BASE}${href.startsWith('/') ? '' : '/'}${href}`;
-          if (!companyUrls.includes(fullUrl)) companyUrls.push(fullUrl);
+          companyEntries.push({ url: fullUrl, fallbackName: '' });
         }
       });
     } catch { /* skip failed category */ }
@@ -799,14 +817,17 @@ async function scrape140Online(query) {
   }
 
   // Step 3: Fetch company detail pages in batches of 5 (limit 30 total)
-  const urlsToFetch = companyUrls.slice(0, 30);
+  const entriesToFetch = companyEntries.slice(0, 30);
   const BATCH_SIZE = 5;
-  for (let i = 0; i < urlsToFetch.length; i += BATCH_SIZE) {
-    const batch = urlsToFetch.slice(i, i + BATCH_SIZE);
-    const results = await Promise.allSettled(batch.map(url => scrape140Company(url)));
-    for (const r of results) {
+  for (let i = 0; i < entriesToFetch.length; i += BATCH_SIZE) {
+    const batch = entriesToFetch.slice(i, i + BATCH_SIZE);
+    const results = await Promise.allSettled(batch.map(e => scrape140Company(e.url)));
+    for (let j = 0; j < results.length; j++) {
+      const r = results[j];
       if (r.status === 'fulfilled' && r.value) {
         const biz = r.value;
+        // Use fallback name from autocomplete if scraper didn't find one
+        if (!biz.name && batch[j].fallbackName) biz.name = batch[j].fallbackName;
         const phoneKey = biz.phone.replace(/[\s\-]/g, '');
         if (!seenPhones.has(phoneKey)) {
           seenPhones.add(phoneKey);
@@ -820,7 +841,7 @@ async function scrape140Online(query) {
     }
   }
 
-  return { businesses, total: companyUrls.length };
+  return { businesses, total: companyEntries.length };
 }
 
 // 140Online search endpoint
