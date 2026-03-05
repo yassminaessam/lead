@@ -836,7 +836,7 @@ async function scrape140Online(query) {
       }
     }
     // Delay between batches
-    if (i + BATCH_SIZE < urlsToFetch.length) {
+    if (i + BATCH_SIZE < entriesToFetch.length) {
       await new Promise(r => setTimeout(r, 1000));
     }
   }
