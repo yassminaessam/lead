@@ -702,6 +702,161 @@ function extractPhonesWithNames(bodyText, businesses, seenNames) {
   }
 }
 
+// ====== 140ONLINE.COM SCRAPER ======
+async function scrape140Company(companyUrl) {
+  try {
+    const resp = await fetch(companyUrl, {
+      headers: {
+        'User-Agent': getRandomUA(),
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'ar,en;q=0.5',
+      },
+    });
+    if (!resp.ok) return null;
+    const html = await resp.text();
+    const $ = cheerio.load(html);
+
+    const data = { name: '', phone: '', address: '', website: '', category: '' };
+
+    // Extract name from page title or h1
+    const h1 = $('h1').first().text().trim();
+    if (h1) data.name = h1;
+
+    // Parse detail table rows
+    $('table tr, .company-info tr, #ContentPlaceHolder1_Table1 tr').each((_, row) => {
+      const cells = $(row).find('td');
+      if (cells.length < 2) return;
+      const label = $(cells[0]).text().trim();
+      const value = $(cells[1]).text().trim();
+      if (/تليفون|تلفون|هاتف|تليف/i.test(label) && !/فاكس/i.test(label)) {
+        const phones = value.replace(/[\s]+/g, ' ').trim();
+        if (phones && phones.length >= 8) data.phone = phones;
+      } else if (/عنوان/i.test(label)) {
+        data.address = value;
+      } else if (/موقع|ويب|website/i.test(label)) {
+        const link = $(cells[1]).find('a').attr('href') || value;
+        if (link && !link.includes('140online')) data.website = link;
+      } else if (/تصنيف|نشاط/i.test(label)) {
+        data.category = value.split(',')[0].trim();
+      }
+    });
+
+    // Fallback: try WhatsApp link for phone
+    if (!data.phone) {
+      const waLink = $('a[href*="api.whatsapp.com"]').attr('href') || '';
+      const waMatch = waLink.match(/phone=(\d+)/);
+      if (waMatch) data.phone = waMatch[1];
+    }
+
+    return data.phone ? data : null;
+  } catch {
+    return null;
+  }
+}
+
+async function scrape140Online(query) {
+  const BASE = 'https://www.140online.com';
+  const businesses = [];
+  const seenPhones = new Set();
+  const companyUrls = [];
+
+  // Step 1: Use autocomplete API to find matching companies and categories
+  const acResp = await fetch(`${BASE}/autoComplete.aspx?term=${encodeURIComponent(query)}`, {
+    headers: { 'User-Agent': getRandomUA(), 'Accept': 'application/json' },
+  });
+  if (!acResp.ok) return { businesses, total: 0 };
+  const acResults = await acResp.json();
+
+  // Collect company URLs from autocomplete results
+  for (const item of acResults) {
+    if (item.cat === 'comp' && item.id) {
+      const nameSlug = encodeURIComponent(item.nm || item.label || '');
+      companyUrls.push(`${BASE}/company/${item.id}/${nameSlug}/`);
+    }
+  }
+
+  // Step 2: For category results, fetch listing page to get more company URLs
+  const categoryItems = acResults.filter(i => i.cat === 'clas').slice(0, 3);
+  for (const cat of categoryItems) {
+    try {
+      const catUrl = `${BASE}/Class/${cat.l || 'A'}${cat.id}/${encodeURIComponent(cat.label || '')}`;
+      const catResp = await fetch(catUrl, {
+        headers: { 'User-Agent': getRandomUA(), 'Accept': 'text/html' },
+      });
+      if (!catResp.ok) continue;
+      const catHtml = await catResp.text();
+      const $c = cheerio.load(catHtml);
+      $c('a[href*="/company/"]').each((_, el) => {
+        const href = $c(el).attr('href');
+        if (href && !href.includes('javascript:')) {
+          const fullUrl = href.startsWith('http') ? href : `${BASE}${href.startsWith('/') ? '' : '/'}${href}`;
+          if (!companyUrls.includes(fullUrl)) companyUrls.push(fullUrl);
+        }
+      });
+    } catch { /* skip failed category */ }
+    // Small delay between category fetches
+    await new Promise(r => setTimeout(r, 500));
+  }
+
+  // Step 3: Fetch company detail pages in batches of 5 (limit 30 total)
+  const urlsToFetch = companyUrls.slice(0, 30);
+  const BATCH_SIZE = 5;
+  for (let i = 0; i < urlsToFetch.length; i += BATCH_SIZE) {
+    const batch = urlsToFetch.slice(i, i + BATCH_SIZE);
+    const results = await Promise.allSettled(batch.map(url => scrape140Company(url)));
+    for (const r of results) {
+      if (r.status === 'fulfilled' && r.value) {
+        const biz = r.value;
+        const phoneKey = biz.phone.replace(/[\s\-]/g, '');
+        if (!seenPhones.has(phoneKey)) {
+          seenPhones.add(phoneKey);
+          businesses.push(biz);
+        }
+      }
+    }
+    // Delay between batches
+    if (i + BATCH_SIZE < urlsToFetch.length) {
+      await new Promise(r => setTimeout(r, 1000));
+    }
+  }
+
+  return { businesses, total: companyUrls.length };
+}
+
+// 140Online search endpoint
+app.post('/api/scrape/140online/search', async (req, res) => {
+  try {
+    const { query } = req.body;
+    if (!query) return res.status(400).json({ error: 'query is required' });
+
+    const { businesses, total } = await scrape140Online(query);
+
+    // Check which phones already exist
+    const phones = businesses.map(b => b.phone).filter(Boolean);
+    const existingLeads = phones.length > 0
+      ? await Lead.find({ phone: { $in: phones } }).select('phone').lean()
+      : [];
+    const existingPhones = new Set(existingLeads.map(l => l.phone));
+
+    const results = businesses.map(b => ({
+      company_name: b.name,
+      phone: b.phone,
+      email: '',
+      website: b.website || '',
+      industry: b.category || query,
+      city: b.address || '',
+      source: '140online',
+      address: b.address || '',
+      rating: 0,
+      alreadySaved: existingPhones.has(b.phone),
+    }));
+
+    res.json({ leads: results, totalFound: total });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Test endpoint
 app.get('/api/scrape/gmaps/test', async (req, res) => {
   try {

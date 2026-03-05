@@ -37,7 +37,7 @@ interface ScrapedLead {
   website: string;
   industry: string;
   city: string;
-  source: 'gmaps';
+  source: 'gmaps' | '140online';
   address?: string;
   rating?: number;
   selected?: boolean;
@@ -194,6 +194,7 @@ export default function DataCollectionPage() {
   const { user } = useAuth();
 
   const [industry, setIndustry] = useState('عيادات');
+  const [searchSource, setSearchSource] = useState<'gmaps' | '140online'>('gmaps');
 
   // Google Maps direct scrape params
   const [gmapsQuery, setGmapsQuery] = useState('');
@@ -470,6 +471,68 @@ export default function DataCollectionPage() {
     }
   };
 
+  // Search 140Online directory
+  const search140Online = async () => {
+    setIsSearching(true);
+    setSaveResult(null);
+    setResults([]);
+    setSearchStats(null);
+    setProgressMsg(language === 'ar' ? 'جاري البحث في دليل 140 أونلاين...' : 'Searching 140Online directory...');
+    setProgressPercent(30);
+
+    try {
+      const searchQuery = gmapsQuery || industry;
+      const res = await fetch('/api/scrape/140online/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: searchQuery }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'خطأ في البحث');
+      }
+
+      const data = await res.json();
+      setProgressPercent(100);
+
+      const leads: ScrapedLead[] = (data.leads || []).map((r: ScrapedLead) => ({
+        ...r,
+        selected: !r.alreadySaved,
+      }));
+
+      setResults(leads);
+      const withPhone = leads.filter(l => l.phone).length;
+      const newCount = leads.filter(l => !l.alreadySaved).length;
+      const alreadySaved = leads.filter(l => l.alreadySaved).length;
+      setSearchStats({
+        total: data.totalFound || leads.length,
+        totalScraped: leads.length,
+        withPhone,
+        newLeads: newCount,
+        alreadySaved,
+        queriesRun: 1,
+        source: 'دليل 140 أونلاين',
+      });
+
+      if (leads.length > 0) {
+        toast.success(language === 'ar'
+          ? `تم العثور على ${newCount} عميل جديد من دليل 140 أونلاين`
+          : `Found ${newCount} new leads from 140Online`);
+      } else {
+        toast.warning(language === 'ar'
+          ? 'لم يتم العثور على نتائج — جرب كلمة بحث مختلفة'
+          : 'No results found — try a different search term');
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'خطأ في البحث';
+      toast.error(msg);
+    } finally {
+      setIsSearching(false);
+      setProgressMsg('');
+    }
+  };
+
   // Save selected leads to database
   const saveLeads = async () => {
     const selected = results.filter(r => r.selected);
@@ -542,14 +605,96 @@ export default function DataCollectionPage() {
             </h1>
             <p className="text-muted-foreground">
               {language === 'ar'
-                ? 'جمع بيانات العملاء المحتملين من Google Maps'
-                : 'Collect potential leads from Google Maps'}
+                ? 'جمع بيانات العملاء المحتملين من مصادر متعددة'
+                : 'Collect potential leads from multiple sources'}
             </p>
           </div>
         </div>
       </div>
 
+      {/* Source Toggle */}
+      <div className="flex gap-3">
+        <Button
+          variant={searchSource === 'gmaps' ? 'default' : 'outline'}
+          onClick={() => setSearchSource('gmaps')}
+          className="gap-2 flex-1"
+          disabled={isSearching}
+        >
+          <Map className="h-4 w-4" />
+          Google Maps
+        </Button>
+        <Button
+          variant={searchSource === '140online' ? 'default' : 'outline'}
+          onClick={() => setSearchSource('140online')}
+          className="gap-2 flex-1"
+          disabled={isSearching}
+        >
+          <Globe className="h-4 w-4" />
+          {language === 'ar' ? 'دليل 140 أونلاين' : '140Online Directory'}
+        </Button>
+      </div>
+
+      {/* 140Online Search */}
+      {searchSource === '140online' && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Globe className="h-5 w-5 text-emerald-600" />
+              {language === 'ar' ? 'البحث في دليل 140 أونلاين' : 'Search 140Online Directory'}
+            </CardTitle>
+            <CardDescription>
+              {language === 'ar'
+                ? 'البحث في دليل الشركات المصرية 140online.com — يعرض اسم الشركة والعنوان والتليفون'
+                : 'Search the Egyptian business directory 140online.com — shows company name, address, and phone'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label>{language === 'ar' ? 'كلمة البحث' : 'Search Query'}</Label>
+              <Input
+                placeholder={language === 'ar' ? 'مثال: عيادات، مطاعم، ترجمه، مقاولات...' : 'e.g. clinics, restaurants, translation...'}
+                value={gmapsQuery}
+                onChange={e => setGmapsQuery(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                {language === 'ar'
+                  ? 'أدخل اسم النشاط أو الشركة — سيتم البحث في الدليل وجلب بيانات الشركات تلقائياً'
+                  : 'Enter industry or company name — will search the directory and fetch company data automatically'}
+              </p>
+            </div>
+
+            <Button onClick={search140Online} disabled={isSearching} className="gap-2" size="lg">
+              {isSearching ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Search className="h-4 w-4" />
+              )}
+              {isSearching
+                ? (language === 'ar' ? 'جاري البحث...' : 'Searching...')
+                : (language === 'ar' ? 'بحث في دليل 140 أونلاين' : 'Search 140Online')}
+            </Button>
+
+            {/* Live Progress */}
+            {isSearching && progressMsg && (
+              <div className="space-y-2 p-4 rounded-xl border bg-gradient-to-r from-emerald-500/5 to-green-500/5 animate-in fade-in">
+                <div className="flex items-center gap-2 text-sm">
+                  <Loader2 className="h-4 w-4 animate-spin text-emerald-600" />
+                  <span className="font-medium">{progressMsg}</span>
+                </div>
+                <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
+                  <div
+                    className="bg-gradient-to-r from-emerald-500 to-green-500 h-full rounded-full transition-all duration-500 ease-out"
+                    style={{ width: `${Math.max(progressPercent, 2)}%` }}
+                  />
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Google Maps Search */}
+      {searchSource === 'gmaps' && (
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -713,6 +858,7 @@ export default function DataCollectionPage() {
           )}
         </CardContent>
       </Card>
+      )}
 
       {/* Search Stats */}
       {searchStats && (
