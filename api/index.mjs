@@ -762,11 +762,44 @@ async function scrape140Company(companyUrl) {
   }
 }
 
-async function scrape140Online(query) {
+async function scrape140Online(query, maxPages = 5) {
   const BASE = 'https://www.140online.com';
   const businesses = [];
   const seenPhones = new Set();
   const companyEntries = []; // { url, fallbackName }
+  const seenIds = new Set();
+
+  // Helper to extract company IDs from a listing page and add to companyEntries
+  function extractCompanyLinks($page) {
+    let count = 0;
+    // Paginated listing pages use /company/ID/NAME/ links in h3 > a
+    $page('a[href*="/company/"]').each((_, el) => {
+      const href = $page(el).attr('href') || '';
+      if (href.includes('AddCompany') || href.includes('javascript:')) return;
+      const idMatch = href.match(/\/company\/([^/]+)\//i);
+      if (idMatch && !seenIds.has(idMatch[1])) {
+        seenIds.add(idMatch[1]);
+        const fullUrl = href.startsWith('http') ? href : `${BASE}${href.startsWith('/') ? '' : '/'}${href}`;
+        // Extract name from link text
+        const name = $page(el).text().trim();
+        const fallbackName = (name && name.length > 2 && name.length < 120) ? name : '';
+        companyEntries.push({ url: fullUrl, fallbackName });
+        count++;
+      }
+    });
+    // Also check CompanyId= format (used only on first category page)
+    $page('a[href*="CompanyId="]').each((_, el) => {
+      const href = $page(el).attr('href') || '';
+      const idMatch = href.match(/CompanyId=([^&]+)/);
+      if (idMatch && !seenIds.has(idMatch[1]) && !href.includes('AddCompany')) {
+        seenIds.add(idMatch[1]);
+        const fullUrl = href.startsWith('http') ? href : `${BASE}${href.startsWith('/') ? '' : '/'}${href}`;
+        companyEntries.push({ url: fullUrl, fallbackName: '' });
+        count++;
+      }
+    });
+    return count;
+  }
 
   // Step 1: Use autocomplete API to find matching companies and categories
   const acResp = await fetch(`${BASE}/autoComplete.aspx?term=${encodeURIComponent(query)}`, {
@@ -775,9 +808,10 @@ async function scrape140Online(query) {
   if (!acResp.ok) return { businesses, total: 0 };
   const acResults = await acResp.json();
 
-  // Collect company URLs from autocomplete results
+  // Collect direct company URLs from autocomplete results
   for (const item of acResults) {
     if (item.cat === 'comp' && item.id) {
+      seenIds.add(item.id);
       const nameSlug = encodeURIComponent(item.nm || item.label || '');
       companyEntries.push({
         url: `${BASE}/company/${item.id}/${nameSlug}/`,
@@ -786,38 +820,49 @@ async function scrape140Online(query) {
     }
   }
 
-  // Step 2: For category results, fetch listing page to get more company URLs
-  const categoryItems = acResults.filter(i => i.cat === 'clas').slice(0, 3);
+  // Step 2: For category results, crawl multiple listing pages
+  const categoryItems = acResults.filter(i => i.cat === 'clas').slice(0, 2);
   for (const cat of categoryItems) {
     try {
-      const catUrl = `${BASE}/Class/${cat.id}/${encodeURIComponent(cat.label || '')}`;
-      const catResp = await fetch(catUrl, {
+      // Fetch first page of the category
+      const catName = encodeURIComponent(cat.label || '');
+      const firstPageUrl = `${BASE}/Class/${cat.id}/${catName}`;
+      const resp1 = await fetch(firstPageUrl, {
         headers: { 'User-Agent': getRandomUA(), 'Accept': 'text/html' },
+        redirect: 'follow',
       });
-      if (!catResp.ok) continue;
-      const catHtml = await catResp.text();
-      const $c = cheerio.load(catHtml);
-      // Category pages use /Company.aspx?CompanyId=XX format
-      const seenIds = new Set(companyEntries.map(e => {
-        const m = e.url.match(/CompanyId=([^&]+)|company\/([^/]+)/);
-        return m ? (m[1] || m[2]) : '';
-      }));
-      $c('a[href*="CompanyId="]').each((_, el) => {
-        const href = $c(el).attr('href') || '';
-        const idMatch = href.match(/CompanyId=([^&]+)/);
-        if (idMatch && !seenIds.has(idMatch[1]) && !href.includes('AddCompany')) {
-          seenIds.add(idMatch[1]);
-          const fullUrl = href.startsWith('http') ? href : `${BASE}${href.startsWith('/') ? '' : '/'}${href}`;
-          companyEntries.push({ url: fullUrl, fallbackName: '' });
-        }
-      });
+      if (!resp1.ok) continue;
+      const html1 = await resp1.text();
+      const $1 = cheerio.load(html1);
+      extractCompanyLinks($1);
+
+      // Check total + determine max pages available
+      const totalText = $1('body').text().match(/كل النتائج\s*-?\s*(\d+)/);
+      const totalResults = totalText ? parseInt(totalText[1]) : 0;
+      const availablePages = Math.ceil(totalResults / 20); // ~20 per page
+      const pagesToFetch = Math.min(maxPages - 1, availablePages - 1); // -1 because we already got page 1
+
+      // Fetch additional pages
+      for (let p = 2; p <= pagesToFetch + 1; p++) {
+        await new Promise(r => setTimeout(r, 800));
+        try {
+          const pageUrl = `${BASE}/class/pages/${cat.id}/${catName}/${p}`;
+          const respP = await fetch(pageUrl, {
+            headers: { 'User-Agent': getRandomUA(), 'Accept': 'text/html' },
+            redirect: 'follow',
+          });
+          if (!respP.ok) continue;
+          const htmlP = await respP.text();
+          const $p = cheerio.load(htmlP);
+          const found = extractCompanyLinks($p);
+          if (found === 0) break; // No more results
+        } catch { break; }
+      }
     } catch { /* skip failed category */ }
-    // Small delay between category fetches
-    await new Promise(r => setTimeout(r, 500));
   }
 
-  // Step 3: Fetch company detail pages in batches of 5 (limit 30 total)
-  const entriesToFetch = companyEntries.slice(0, 30);
+  // Step 3: Fetch company detail pages in batches of 5 (limit to 50 companies)
+  const entriesToFetch = companyEntries.slice(0, 50);
   const BATCH_SIZE = 5;
   for (let i = 0; i < entriesToFetch.length; i += BATCH_SIZE) {
     const batch = entriesToFetch.slice(i, i + BATCH_SIZE);
@@ -826,7 +871,7 @@ async function scrape140Online(query) {
       const r = results[j];
       if (r.status === 'fulfilled' && r.value) {
         const biz = r.value;
-        // Use fallback name from autocomplete if scraper didn't find one
+        // Use fallback name from listing if scraper didn't find one
         if (!biz.name && batch[j].fallbackName) biz.name = batch[j].fallbackName;
         const phoneKey = biz.phone.replace(/[\s\-]/g, '');
         if (!seenPhones.has(phoneKey)) {
@@ -837,7 +882,7 @@ async function scrape140Online(query) {
     }
     // Delay between batches
     if (i + BATCH_SIZE < entriesToFetch.length) {
-      await new Promise(r => setTimeout(r, 1000));
+      await new Promise(r => setTimeout(r, 800));
     }
   }
 
@@ -847,10 +892,11 @@ async function scrape140Online(query) {
 // 140Online search endpoint
 app.post('/api/scrape/140online/search', async (req, res) => {
   try {
-    const { query } = req.body;
+    const { query, maxPages } = req.body;
     if (!query) return res.status(400).json({ error: 'query is required' });
 
-    const { businesses, total } = await scrape140Online(query);
+    const pages = Math.min(Math.max(parseInt(maxPages) || 5, 1), 20);
+    const { businesses, total } = await scrape140Online(query, pages);
 
     // Check which phones already exist
     const phones = businesses.map(b => b.phone).filter(Boolean);

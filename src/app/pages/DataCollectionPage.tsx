@@ -213,6 +213,7 @@ export default function DataCollectionPage() {
   const [assignTo, setAssignTo] = useState('');
   const [progressMsg, setProgressMsg] = useState('');
   const [progressPercent, setProgressPercent] = useState(0);
+  const [maxPages, setMaxPages] = useState(5);
 
   const selectedCount = results.filter(r => r.selected).length;
   const salesUsers = users.filter(u => u.role === 'sales' || u.role === 'admin');
@@ -485,7 +486,7 @@ export default function DataCollectionPage() {
       const res = await fetch('/api/scrape/140online/search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: searchQuery }),
+        body: JSON.stringify({ query: searchQuery, maxPages }),
       });
 
       if (!res.ok) {
@@ -660,6 +661,26 @@ export default function DataCollectionPage() {
                 {language === 'ar'
                   ? 'أدخل اسم النشاط أو الشركة — سيتم البحث في الدليل وجلب بيانات الشركات تلقائياً'
                   : 'Enter industry or company name — will search the directory and fetch company data automatically'}
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label>{language === 'ar' ? 'عدد الصفحات' : 'Pages to scan'}</Label>
+                <span className="text-sm font-mono text-muted-foreground">{maxPages} {language === 'ar' ? 'صفحات (~' + (maxPages * 20) + ' شركة)' : 'pages (~' + (maxPages * 20) + ' companies)'}</span>
+              </div>
+              <input
+                type="range"
+                min="1"
+                max="20"
+                value={maxPages}
+                onChange={e => setMaxPages(parseInt(e.target.value))}
+                className="w-full accent-emerald-600"
+              />
+              <p className="text-xs text-muted-foreground">
+                {language === 'ar'
+                  ? 'كل صفحة تحتوي ~20 شركة — زيادة الصفحات تعطي نتائج أكثر لكن تستغرق وقتاً أطول'
+                  : 'Each page has ~20 companies — more pages = more results but takes longer'}
               </p>
             </div>
 
