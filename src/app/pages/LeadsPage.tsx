@@ -63,6 +63,8 @@ export default function LeadsPage() {
   const [assignToUserId, setAssignToUserId] = useState<string>('');
 
   const isAdmin = currentUser?.role === 'admin';
+  const isManager = currentUser?.role === 'manager';
+  const isSales = currentUser?.role === 'sales';
   const salesUsers = users.filter(u => u.role === 'sales' || u.role === 'manager');
 
   const handleCardClick = (filter: string) => {
@@ -70,8 +72,14 @@ export default function LeadsPage() {
     setStatusFilter('all');
   };
 
-  // Filter leads
-  const filteredLeads = leads.filter(lead => {
+  // العملاء المتاحة للمستخدم الحالي (حسب الصلاحيات)
+  // موظف المبيعات يرى فقط العملاء المخصصين له
+  const userLeads = isSales 
+    ? leads.filter(lead => lead.assigned_to === currentUser?._id)
+    : leads;
+
+  // Filter leads - تطبيق باقي الفلاتر
+  const filteredLeads = userLeads.filter(lead => {
     const matchesSearch = 
       lead.company_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       lead.phone.includes(searchQuery) ||
@@ -279,7 +287,7 @@ export default function LeadsPage() {
           }}
           onClick={() => handleCardClick('all')}
         >
-          <div className="text-2xl font-bold" style={{ color: 'rgba(102, 126, 234, 0.9)' }}>{leads.length}</div>
+          <div className="text-2xl font-bold" style={{ color: 'rgba(102, 126, 234, 0.9)' }}>{userLeads.length}</div>
           <div className="text-sm" style={{ color: 'rgba(102, 126, 234, 0.7)' }}>
             {language === 'ar' ? 'إجمالي النتائج' : 'Total Results'}
           </div>
@@ -294,7 +302,7 @@ export default function LeadsPage() {
           onClick={() => handleCardClick('closed')}
         >
           <div className="text-2xl font-bold" style={{ color: 'rgba(16, 185, 129, 0.9)' }}>
-            {leads.filter(l => l.status === 'closed').length}
+            {userLeads.filter(l => l.status === 'closed').length}
           </div>
           <div className="text-sm" style={{ color: 'rgba(16, 185, 129, 0.7)' }}>
             {language === 'ar' ? 'صفقات مغلقة' : 'Closed Deals'}
@@ -310,7 +318,7 @@ export default function LeadsPage() {
           onClick={() => handleCardClick('followup')}
         >
           <div className="text-2xl font-bold" style={{ color: 'rgba(245, 158, 11, 0.9)' }}>
-            {leads.filter(l => l.status === 'followup' || l.status === 'meeting').length}
+            {userLeads.filter(l => l.status === 'followup' || l.status === 'meeting').length}
           </div>
           <div className="text-sm" style={{ color: 'rgba(245, 158, 11, 0.7)' }}>
             {t('need_follow_up')}
@@ -326,7 +334,7 @@ export default function LeadsPage() {
           onClick={() => handleCardClick('new')}
         >
           <div className="text-2xl font-bold" style={{ color: 'rgba(139, 92, 246, 0.9)' }}>
-            {leads.filter(l => l.status === 'new').length}
+            {userLeads.filter(l => l.status === 'new').length}
           </div>
           <div className="text-sm" style={{ color: 'rgba(139, 92, 246, 0.7)' }}>
             {language === 'ar' ? 'عملاء جدد' : 'New Leads'}
