@@ -324,35 +324,40 @@ export default function DashboardHome() {
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={380}>
-                <BarChart 
-                  data={industryData} 
+                <BarChart
+                  data={industryData}
                   layout="vertical"
-                  margin={{ top: 10, right: 40, left: 200, bottom: 10 }}
+                  margin={language === 'ar'
+                    ? { top: 10, right: 210, left: 20, bottom: 10 }
+                    : { top: 10, right: 20, left: 210, bottom: 10 }
+                  }
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="currentColor" opacity={0.1} />
-                  <XAxis 
-                    type="number" 
-                    stroke="currentColor" 
+                  <XAxis
+                    type="number"
+                    stroke="currentColor"
                     opacity={0.5}
+                    reversed={language === 'ar'}
                     tick={{ fontSize: 12 }}
                   />
-                  <YAxis 
-                    dataKey="name" 
-                    type="category" 
-                    stroke="currentColor" 
+                  <YAxis
+                    dataKey="name"
+                    type="category"
+                    stroke="currentColor"
                     opacity={0.8}
-                    orientation="left"
+                    orientation={language === 'ar' ? 'right' : 'left'}
                     axisLine={false}
                     tickLine={false}
-                    tick={{ fontSize: 12, textAnchor: 'end', fill: 'currentColor' }}
+                    tickMargin={12}
+                    tick={{ fontSize: 12, fill: 'currentColor' }}
                     width={190}
                     interval={0}
                   />
                   <Tooltip content={<CustomTooltip language={language} />} />
-                  <Bar 
-                    dataKey="value" 
-                    fill="rgba(251, 191, 36, 0.8)" 
-                    radius={[0, 6, 6, 0]} 
+                  <Bar
+                    dataKey="value"
+                    fill="rgba(251, 191, 36, 0.8)"
+                    radius={language === 'ar' ? [6, 0, 0, 6] : [0, 6, 6, 0]}
                     barSize={25}
                   />
                 </BarChart>
