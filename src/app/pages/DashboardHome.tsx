@@ -327,7 +327,10 @@ export default function DashboardHome() {
                 <BarChart 
                   data={industryData} 
                   layout="vertical"
-                  margin={{ top: 5, right: 30, left: 10, bottom: 5 }}
+                  margin={language === 'ar' 
+                    ? { top: 5, right: 160, left: 30, bottom: 5 }
+                    : { top: 5, right: 30, left: 160, bottom: 5 }
+                  }
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="currentColor" opacity={0.1} />
                   <XAxis type="number" stroke="currentColor" opacity={0.5} reversed={language === 'ar'} />
@@ -339,7 +342,7 @@ export default function DashboardHome() {
                     opacity={0.7}
                     orientation={language === 'ar' ? 'right' : 'left'}
                     tick={{ fontSize: 12 }}
-                    tickFormatter={(value) => value.length > 20 ? value.substring(0, 20) + '...' : value}
+                    tickFormatter={(value) => value.length > 18 ? value.substring(0, 18) + '...' : value}
                   />
                   <Tooltip content={<CustomTooltip language={language} />} />
                   <Bar dataKey="value" fill="rgba(251, 191, 36, 0.7)" radius={language === 'ar' ? [8, 0, 0, 8] : [0, 8, 8, 0]} />
