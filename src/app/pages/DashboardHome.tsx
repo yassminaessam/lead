@@ -1,5 +1,6 @@
 import { useCRM } from '../contexts/CRMContext';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useAuth } from '../contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, TooltipProps } from 'recharts';
 import { PhoneCall, Users, TrendingUp, CheckCircle, Phone, PhoneOff, Sparkles } from 'lucide-react';
@@ -50,24 +51,35 @@ const renderCustomLabel = (props: any, language: string) => {
 
 export default function DashboardHome() {
   const { t, language } = useLanguage();
-  const { leads, calls, users, getStats } = useCRM();
+  const { leads, calls, getStats } = useCRM();
+  const { user } = useAuth();
+
+  // For sales users, filter to show only their assigned leads
+  const filteredLeads = user?.role === 'sales' 
+    ? leads.filter(l => l.assigned_to === user._id)
+    : leads;
 
   // Calculate statistics
   const stats = getStats();
-  const totalLeads = stats.totalLeads;
+  // For sales users, use filtered leads count; for admin/manager, use total
+  const totalLeads = user?.role === 'sales' ? filteredLeads.length : stats.totalLeads;
   const totalCalls = stats.totalCalls;
   const contactRate = stats.contactRate.toFixed(1);
-  const closedLeads = stats.closedLeads;
-  const conversionRate = stats.conversionRate.toFixed(1);
+  const closedLeads = user?.role === 'sales' 
+    ? filteredLeads.filter(l => l.status === 'closed').length 
+    : stats.closedLeads;
+  const conversionRate = totalLeads > 0 
+    ? ((closedLeads / totalLeads) * 100).toFixed(1)
+    : '0.0';
 
-  // Status distribution
+  // Status distribution - use filtered leads for sales users
   const statusData = [
-    { name: language === 'ar' ? 'جديد' : 'New', value: leads.filter(l => l.status === 'new').length, color: 'rgba(147, 167, 255, 0.7)' },
-    { name: language === 'ar' ? 'تم التواصل' : 'Contacted', value: leads.filter(l => l.status === 'contacted').length, color: 'rgba(103, 232, 249, 0.7)' },
-    { name: language === 'ar' ? 'متابعة' : 'Follow-up', value: leads.filter(l => l.status === 'followup').length, color: 'rgba(251, 191, 36, 0.7)' },
-    { name: language === 'ar' ? 'اجتماع' : 'Meeting', value: leads.filter(l => l.status === 'meeting').length, color: 'rgba(110, 231, 183, 0.7)' },
-    { name: language === 'ar' ? 'مغلق' : 'Closed', value: leads.filter(l => l.status === 'closed').length, color: 'rgba(52, 211, 153, 0.7)' },
-    { name: language === 'ar' ? 'خسارة' : 'Lost', value: leads.filter(l => l.status === 'lost').length, color: 'rgba(252, 165, 165, 0.7)' },
+    { name: language === 'ar' ? 'جديد' : 'New', value: filteredLeads.filter(l => l.status === 'new').length, color: 'rgba(147, 167, 255, 0.7)' },
+    { name: language === 'ar' ? 'تم التواصل' : 'Contacted', value: filteredLeads.filter(l => l.status === 'contacted').length, color: 'rgba(103, 232, 249, 0.7)' },
+    { name: language === 'ar' ? 'متابعة' : 'Follow-up', value: filteredLeads.filter(l => l.status === 'followup').length, color: 'rgba(251, 191, 36, 0.7)' },
+    { name: language === 'ar' ? 'اجتماع' : 'Meeting', value: filteredLeads.filter(l => l.status === 'meeting').length, color: 'rgba(110, 231, 183, 0.7)' },
+    { name: language === 'ar' ? 'مغلق' : 'Closed', value: filteredLeads.filter(l => l.status === 'closed').length, color: 'rgba(52, 211, 153, 0.7)' },
+    { name: language === 'ar' ? 'خسارة' : 'Lost', value: filteredLeads.filter(l => l.status === 'lost').length, color: 'rgba(252, 165, 165, 0.7)' },
   ];
 
   // Calls by result
@@ -77,26 +89,6 @@ export default function DashboardHome() {
     { name: language === 'ar' ? 'مشغول' : 'Busy', value: calls.filter(c => c.result === 'busy').length, color: 'rgba(252, 165, 165, 0.7)' },
     { name: language === 'ar' ? 'رفض' : 'Rejected', value: calls.filter(c => c.result === 'rejected').length, color: 'rgba(254, 202, 202, 0.7)' },
   ];
-
-  // Sales performance
-  const salesPerformance = users
-    .filter(u => u.role === 'sales')
-    .map(user => {
-      const userCalls = calls.filter(c => c.user_id === user._id).length;
-      const userLeads = leads.filter(l => l.assigned_to === user._id && l.status === 'closed').length;
-      return {
-        name: user.name,
-        [language === 'ar' ? 'مكالمات' : 'Calls']: userCalls,
-        [language === 'ar' ? 'صفقات' : 'Deals']: userLeads,
-      };
-    });
-
-  // Industry distribution
-  const industries = [...new Set(leads.map(l => l.industry))];
-  const industryData = industries.map(industry => ({
-    name: industry,
-    value: leads.filter(l => l.industry === industry).length,
-  }));
 
   return (
     <div className="p-8 space-y-8">
@@ -244,81 +236,7 @@ export default function DashboardHome() {
           </CardContent>
         </Card>
 
-        {/* Sales Performance */}
-        <Card className="card-hover border-2">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <div className="w-2 h-8 rounded-full" style={{ backgroundColor: 'rgba(139, 92, 246, 1)' }}></div>
-              {language === 'ar' ? 'أداء فريق المبيعات' : 'Sales Team Performance'}
-            </CardTitle>
-            <CardDescription>
-              {language === 'ar' ? 'المكالمات والصفقات لكل موظف' : 'Calls & Deals per Employee'}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart 
-                data={salesPerformance}
-                margin={{ top: 5, right: 20, left: 0, bottom: 5 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="currentColor" opacity={0.1} />
-                <XAxis 
-                  dataKey="name" 
-                  stroke="currentColor" 
-                  opacity={0.5}
-                  angle={language === 'ar' ? -15 : 0}
-                  textAnchor={language === 'ar' ? 'end' : 'middle'}
-                  height={60}
-                />
-                <YAxis stroke="currentColor" opacity={0.5} />
-                <Tooltip content={<CustomTooltip language={language} />} />
-                <Legend 
-                  wrapperStyle={{ 
-                    direction: language === 'ar' ? 'rtl' : 'ltr',
-                    textAlign: language === 'ar' ? 'right' : 'left'
-                  }}
-                />
-                <Bar dataKey={language === 'ar' ? 'مكالمات' : 'Calls'} fill="rgba(147, 167, 255, 0.7)" radius={[8, 8, 0, 0]} />
-                <Bar dataKey={language === 'ar' ? 'صفقات' : 'Deals'} fill="rgba(110, 231, 183, 0.7)" radius={[8, 8, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
 
-        {/* Industry Distribution */}
-        <Card className="card-hover border-2">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <div className="w-2 h-8 bg-warning rounded-full"></div>
-              {language === 'ar' ? 'توزيع الصناعات' : 'Industry Distribution'}
-            </CardTitle>
-            <CardDescription>
-              {language === 'ar' ? 'العملاء حسب القطاع' : 'Customers by Sector'}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart 
-                data={industryData} 
-                layout="vertical"
-                margin={{ top: 5, right: 20, left: 0, bottom: 5 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="currentColor" opacity={0.1} />
-                <XAxis type="number" stroke="currentColor" opacity={0.5} reversed={language === 'ar'} />
-                <YAxis 
-                  dataKey="name" 
-                  type="category" 
-                  width={language === 'ar' ? 100 : 100} 
-                  stroke="currentColor" 
-                  opacity={0.5}
-                  orientation={language === 'ar' ? 'right' : 'left'}
-                />
-                <Tooltip content={<CustomTooltip language={language} />} />
-                <Bar dataKey="value" fill="rgba(251, 191, 36, 0.7)" radius={language === 'ar' ? [8, 0, 0, 8] : [0, 8, 8, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
       </div>
     </div>
   );
