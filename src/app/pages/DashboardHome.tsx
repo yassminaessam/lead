@@ -323,28 +323,38 @@ export default function DashboardHome() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={400}>
+              <ResponsiveContainer width="100%" height={380}>
                 <BarChart 
                   data={industryData} 
                   layout="vertical"
-                  margin={{ top: 5, right: 30, left: 180, bottom: 5 }}
+                  margin={{ top: 10, right: 40, left: 200, bottom: 10 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="currentColor" opacity={0.1} />
-                  <XAxis type="number" stroke="currentColor" opacity={0.5} />
+                  <XAxis 
+                    type="number" 
+                    stroke="currentColor" 
+                    opacity={0.5}
+                    tick={{ fontSize: 12 }}
+                  />
                   <YAxis 
                     dataKey="name" 
                     type="category" 
                     stroke="currentColor" 
-                    opacity={0.7}
+                    opacity={0.8}
                     orientation="left"
                     axisLine={false}
                     tickLine={false}
-                    tick={{ fontSize: 11 }}
-                    width={170}
-                    tickFormatter={(value) => value.length > 22 ? value.substring(0, 22) + '...' : value}
+                    tick={{ fontSize: 12, textAnchor: 'end', fill: 'currentColor' }}
+                    width={190}
+                    interval={0}
                   />
                   <Tooltip content={<CustomTooltip language={language} />} />
-                  <Bar dataKey="value" fill="rgba(251, 191, 36, 0.7)" radius={[0, 8, 8, 0]} barSize={20} />
+                  <Bar 
+                    dataKey="value" 
+                    fill="rgba(251, 191, 36, 0.8)" 
+                    radius={[0, 6, 6, 0]} 
+                    barSize={25}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>
