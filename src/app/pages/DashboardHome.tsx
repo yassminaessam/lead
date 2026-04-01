@@ -323,26 +323,28 @@ export default function DashboardHome() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={350}>
+              <ResponsiveContainer width="100%" height={400}>
                 <BarChart 
                   data={industryData} 
                   layout="vertical"
-                  margin={{ top: 5, right: 30, left: 30, bottom: 5 }}
+                  margin={{ top: 5, right: 30, left: 180, bottom: 5 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="currentColor" opacity={0.1} />
                   <XAxis type="number" stroke="currentColor" opacity={0.5} />
                   <YAxis 
                     dataKey="name" 
                     type="category" 
-                    width={150} 
                     stroke="currentColor" 
                     opacity={0.7}
                     orientation="left"
-                    tick={{ fontSize: 11, textAnchor: 'end' }}
-                    tickFormatter={(value) => value.length > 18 ? value.substring(0, 18) + '...' : value}
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fontSize: 11 }}
+                    width={170}
+                    tickFormatter={(value) => value.length > 22 ? value.substring(0, 22) + '...' : value}
                   />
                   <Tooltip content={<CustomTooltip language={language} />} />
-                  <Bar dataKey="value" fill="rgba(251, 191, 36, 0.7)" radius={[0, 8, 8, 0]} />
+                  <Bar dataKey="value" fill="rgba(251, 191, 36, 0.7)" radius={[0, 8, 8, 0]} barSize={20} />
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>
