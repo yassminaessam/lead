@@ -327,25 +327,22 @@ export default function DashboardHome() {
                 <BarChart 
                   data={industryData} 
                   layout="vertical"
-                  margin={language === 'ar' 
-                    ? { top: 5, right: 160, left: 30, bottom: 5 }
-                    : { top: 5, right: 30, left: 160, bottom: 5 }
-                  }
+                  margin={{ top: 5, right: 30, left: 30, bottom: 5 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="currentColor" opacity={0.1} />
-                  <XAxis type="number" stroke="currentColor" opacity={0.5} reversed={language === 'ar'} />
+                  <XAxis type="number" stroke="currentColor" opacity={0.5} />
                   <YAxis 
                     dataKey="name" 
                     type="category" 
                     width={150} 
                     stroke="currentColor" 
                     opacity={0.7}
-                    orientation={language === 'ar' ? 'right' : 'left'}
-                    tick={{ fontSize: 12 }}
+                    orientation="left"
+                    tick={{ fontSize: 11, textAnchor: 'end' }}
                     tickFormatter={(value) => value.length > 18 ? value.substring(0, 18) + '...' : value}
                   />
                   <Tooltip content={<CustomTooltip language={language} />} />
-                  <Bar dataKey="value" fill="rgba(251, 191, 36, 0.7)" radius={language === 'ar' ? [8, 0, 0, 8] : [0, 8, 8, 0]} />
+                  <Bar dataKey="value" fill="rgba(251, 191, 36, 0.7)" radius={[0, 8, 8, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>
