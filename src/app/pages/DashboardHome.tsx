@@ -106,39 +106,6 @@ export default function DashboardHome() {
       };
     });
 
-  // Industry distribution - only for admin/manager
-  // Filter out empty/invalid industries and sort by count
-  const industryCount = leads.reduce((acc, lead) => {
-    const industry = lead.industry?.trim();
-    if (industry && industry.length > 0) {
-      acc[industry] = (acc[industry] || 0) + 1;
-    }
-    return acc;
-  }, {} as Record<string, number>);
-  
-  const sortedIndustries = Object.entries(industryCount)
-    .map(([name, value]) => ({ name, value }))
-    .sort((a, b) => b.value - a.value);
-
-  const topIndustries = sortedIndustries.slice(0, 6);
-  const otherIndustriesCount = sortedIndustries
-    .slice(6)
-    .reduce((sum, item) => sum + item.value, 0);
-
-  const industryData = otherIndustriesCount > 0
-    ? [...topIndustries, { name: language === 'ar' ? 'أخرى' : 'Others', value: otherIndustriesCount }]
-    : topIndustries;
-
-  const isArabic = language === 'ar';
-  const industryChartMargin = isArabic
-    ? { top: 8, right: 210, left: 20, bottom: 8 }
-    : { top: 8, right: 24, left: 160, bottom: 8 };
-  const industryAxisWidth = isArabic ? 170 : 145;
-  const formatIndustryLabel = (value: string) => {
-    const maxLength = isArabic ? 14 : 16;
-    return value.length > maxLength ? `${value.slice(0, maxLength)}...` : value;
-  };
-
   return (
     <div className="p-8 space-y-8">
       {/* Elite Header */}
@@ -322,60 +289,6 @@ export default function DashboardHome() {
                   />
                   <Bar dataKey={language === 'ar' ? 'مكالمات' : 'Calls'} fill="rgba(147, 167, 255, 0.7)" radius={[8, 8, 0, 0]} />
                   <Bar dataKey={language === 'ar' ? 'صفقات' : 'Deals'} fill="rgba(110, 231, 183, 0.7)" radius={[8, 8, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Industry Distribution - Only for Admin/Manager */}
-        {isAdminOrManager && (
-          <Card className="card-hover border-2">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <div className="w-2 h-8 bg-warning rounded-full"></div>
-                {language === 'ar' ? 'توزيع الصناعات' : 'Industry Distribution'}
-              </CardTitle>
-              <CardDescription>
-                {language === 'ar' ? 'العملاء حسب القطاع' : 'Customers by Sector'}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={320}>
-                <BarChart
-                  data={industryData}
-                  layout="vertical"
-                  margin={industryChartMargin}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="currentColor" opacity={0.1} />
-                  <XAxis
-                    type="number"
-                    stroke="currentColor"
-                    opacity={0.5}
-                    reversed={isArabic}
-                    tick={{ fontSize: 12 }}
-                  />
-                  <YAxis
-                    dataKey="name"
-                    type="category"
-                    stroke="currentColor"
-                    opacity={0.8}
-                    orientation={isArabic ? 'right' : 'left'}
-                    axisLine={false}
-                    tickLine={false}
-                    tickMargin={isArabic ? 14 : 8}
-                    tick={{ fontSize: 11, fill: 'currentColor', dx: isArabic ? 8 : 0 }}
-                    width={industryAxisWidth}
-                    interval={0}
-                    tickFormatter={formatIndustryLabel}
-                  />
-                  <Tooltip content={<CustomTooltip language={language} />} />
-                  <Bar
-                    dataKey="value"
-                    fill="rgba(251, 191, 36, 0.8)"
-                    radius={language === 'ar' ? [6, 0, 0, 6] : [0, 6, 6, 0]}
-                    barSize={22}
-                  />
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>
