@@ -107,11 +107,19 @@ export default function DashboardHome() {
     });
 
   // Industry distribution - only for admin/manager
-  const industries = [...new Set(leads.map(l => l.industry))];
-  const industryData = industries.map(industry => ({
-    name: industry,
-    value: leads.filter(l => l.industry === industry).length,
-  }));
+  // Filter out empty/invalid industries and sort by count
+  const industryCount = leads.reduce((acc, lead) => {
+    const industry = lead.industry?.trim();
+    if (industry && industry.length > 0) {
+      acc[industry] = (acc[industry] || 0) + 1;
+    }
+    return acc;
+  }, {} as Record<string, number>);
+  
+  const industryData = Object.entries(industryCount)
+    .map(([name, value]) => ({ name, value }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 10); // Top 10 industries
 
   return (
     <div className="p-8 space-y-8">
@@ -315,21 +323,23 @@ export default function DashboardHome() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
+              <ResponsiveContainer width="100%" height={350}>
                 <BarChart 
                   data={industryData} 
                   layout="vertical"
-                  margin={{ top: 5, right: 20, left: 0, bottom: 5 }}
+                  margin={{ top: 5, right: 30, left: 10, bottom: 5 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="currentColor" opacity={0.1} />
                   <XAxis type="number" stroke="currentColor" opacity={0.5} reversed={language === 'ar'} />
                   <YAxis 
                     dataKey="name" 
                     type="category" 
-                    width={language === 'ar' ? 100 : 100} 
+                    width={150} 
                     stroke="currentColor" 
-                    opacity={0.5}
+                    opacity={0.7}
                     orientation={language === 'ar' ? 'right' : 'left'}
+                    tick={{ fontSize: 12 }}
+                    tickFormatter={(value) => value.length > 20 ? value.substring(0, 20) + '...' : value}
                   />
                   <Tooltip content={<CustomTooltip language={language} />} />
                   <Bar dataKey="value" fill="rgba(251, 191, 36, 0.7)" radius={language === 'ar' ? [8, 0, 0, 8] : [0, 8, 8, 0]} />
