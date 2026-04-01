@@ -129,6 +129,16 @@ export default function DashboardHome() {
     ? [...topIndustries, { name: language === 'ar' ? 'أخرى' : 'Others', value: otherIndustriesCount }]
     : topIndustries;
 
+  const isArabic = language === 'ar';
+  const industryChartMargin = isArabic
+    ? { top: 8, right: 210, left: 20, bottom: 8 }
+    : { top: 8, right: 24, left: 160, bottom: 8 };
+  const industryAxisWidth = isArabic ? 170 : 145;
+  const formatIndustryLabel = (value: string) => {
+    const maxLength = isArabic ? 14 : 16;
+    return value.length > maxLength ? `${value.slice(0, maxLength)}...` : value;
+  };
+
   return (
     <div className="p-8 space-y-8">
       {/* Elite Header */}
@@ -335,17 +345,14 @@ export default function DashboardHome() {
                 <BarChart
                   data={industryData}
                   layout="vertical"
-                  margin={language === 'ar'
-                    ? { top: 8, right: 170, left: 24, bottom: 8 }
-                    : { top: 8, right: 24, left: 170, bottom: 8 }
-                  }
+                  margin={industryChartMargin}
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="currentColor" opacity={0.1} />
                   <XAxis
                     type="number"
                     stroke="currentColor"
                     opacity={0.5}
-                    reversed={language === 'ar'}
+                    reversed={isArabic}
                     tick={{ fontSize: 12 }}
                   />
                   <YAxis
@@ -353,14 +360,14 @@ export default function DashboardHome() {
                     type="category"
                     stroke="currentColor"
                     opacity={0.8}
-                    orientation={language === 'ar' ? 'right' : 'left'}
+                    orientation={isArabic ? 'right' : 'left'}
                     axisLine={false}
                     tickLine={false}
-                    tickMargin={8}
-                    tick={{ fontSize: 11, fill: 'currentColor' }}
-                    width={150}
+                    tickMargin={isArabic ? 14 : 8}
+                    tick={{ fontSize: 11, fill: 'currentColor', dx: isArabic ? 8 : 0 }}
+                    width={industryAxisWidth}
                     interval={0}
-                    tickFormatter={(value: string) => value.length > 16 ? `${value.slice(0, 16)}...` : value}
+                    tickFormatter={formatIndustryLabel}
                   />
                   <Tooltip content={<CustomTooltip language={language} />} />
                   <Bar
