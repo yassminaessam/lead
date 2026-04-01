@@ -116,10 +116,18 @@ export default function DashboardHome() {
     return acc;
   }, {} as Record<string, number>);
   
-  const industryData = Object.entries(industryCount)
+  const sortedIndustries = Object.entries(industryCount)
     .map(([name, value]) => ({ name, value }))
-    .sort((a, b) => b.value - a.value)
-    .slice(0, 10); // Top 10 industries
+    .sort((a, b) => b.value - a.value);
+
+  const topIndustries = sortedIndustries.slice(0, 6);
+  const otherIndustriesCount = sortedIndustries
+    .slice(6)
+    .reduce((sum, item) => sum + item.value, 0);
+
+  const industryData = otherIndustriesCount > 0
+    ? [...topIndustries, { name: language === 'ar' ? 'أخرى' : 'Others', value: otherIndustriesCount }]
+    : topIndustries;
 
   return (
     <div className="p-8 space-y-8">
@@ -323,13 +331,13 @@ export default function DashboardHome() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={380}>
+              <ResponsiveContainer width="100%" height={320}>
                 <BarChart
                   data={industryData}
                   layout="vertical"
                   margin={language === 'ar'
-                    ? { top: 10, right: 210, left: 20, bottom: 10 }
-                    : { top: 10, right: 20, left: 210, bottom: 10 }
+                    ? { top: 8, right: 170, left: 24, bottom: 8 }
+                    : { top: 8, right: 24, left: 170, bottom: 8 }
                   }
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="currentColor" opacity={0.1} />
@@ -348,17 +356,18 @@ export default function DashboardHome() {
                     orientation={language === 'ar' ? 'right' : 'left'}
                     axisLine={false}
                     tickLine={false}
-                    tickMargin={12}
-                    tick={{ fontSize: 12, fill: 'currentColor' }}
-                    width={190}
+                    tickMargin={8}
+                    tick={{ fontSize: 11, fill: 'currentColor' }}
+                    width={150}
                     interval={0}
+                    tickFormatter={(value: string) => value.length > 16 ? `${value.slice(0, 16)}...` : value}
                   />
                   <Tooltip content={<CustomTooltip language={language} />} />
                   <Bar
                     dataKey="value"
                     fill="rgba(251, 191, 36, 0.8)"
                     radius={language === 'ar' ? [6, 0, 0, 6] : [0, 6, 6, 0]}
-                    barSize={25}
+                    barSize={22}
                   />
                 </BarChart>
               </ResponsiveContainer>
