@@ -503,28 +503,37 @@ const assignedUser = users.find(u => u._id === lead.assigned_to);
                   </TableCell>
                   <TableCell>
                     {isAdmin ? (
-                      <Select 
-                        value={lead.assigned_to || 'unassigned'} 
-                        onValueChange={(val) => handleSingleAssign(lead._id, val === 'unassigned' ? '' : val)}
-                        disabled={!!lead.assigned_to && users.find(u => u._id === lead.assigned_to)?.role === 'sales'}
-                      >
-                        <SelectTrigger className={`w-36 h-8 ${lead.assigned_to && users.find(u => u._id === lead.assigned_to)?.role === 'sales' ? 'opacity-70' : ''}`}>
-                          <SelectValue placeholder={language === 'ar' ? 'غير مخصص' : 'Unassigned'} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="unassigned">
-                            {language === 'ar' ? 'غير مخصص' : 'Unassigned'}
-                          </SelectItem>
-                          {salesUsers.map(u => (
-                            <SelectItem key={u._id} value={u._id}>
-                              <div className="flex items-center gap-2">
-                                {lead.assigned_to === u._id && <Check className="h-4 w-4 text-primary" />}
-                                <span>{u.name}</span>
-                              </div>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      (() => {
+                        const isAssignedToSales = !!lead.assigned_to && users.find(u => u._id === lead.assigned_to)?.role === 'sales';
+                        return isAssignedToSales ? (
+                          <div className="flex items-center gap-2 px-3 py-1.5 rounded-md border bg-muted/50 text-sm w-36 h-8 opacity-70 cursor-not-allowed">
+                            <Check className="h-4 w-4 text-primary" />
+                            <span>{assignedUser?.name}</span>
+                          </div>
+                        ) : (
+                          <Select 
+                            value={lead.assigned_to || 'unassigned'} 
+                            onValueChange={(val) => handleSingleAssign(lead._id, val === 'unassigned' ? '' : val)}
+                          >
+                            <SelectTrigger className="w-36 h-8">
+                              <SelectValue placeholder={language === 'ar' ? 'غير مخصص' : 'Unassigned'} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="unassigned">
+                                {language === 'ar' ? 'غير مخصص' : 'Unassigned'}
+                              </SelectItem>
+                              {salesUsers.map(u => (
+                                <SelectItem key={u._id} value={u._id}>
+                                  <div className="flex items-center gap-2">
+                                    {lead.assigned_to === u._id && <Check className="h-4 w-4 text-primary" />}
+                                    <span>{u.name}</span>
+                                  </div>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        );
+                      })()
                     ) : (
                       assignedUser?.name || '-'
                     )}
