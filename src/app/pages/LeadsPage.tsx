@@ -469,11 +469,17 @@ const assignedUser = users.find(u => u._id === lead.assigned_to);
                 <TableRow key={lead._id} className={selectedLeadIds.has(lead._id) ? 'bg-primary/5' : ''}>
                   {isAdmin && (
                     <TableCell className="text-center">
-                      <Checkbox
-                        checked={selectedLeadIds.has(lead._id)}
-                        onCheckedChange={() => toggleSelectLead(lead._id)}
-                        className="border-2 border-primary/60 h-5 w-5"
-                      />
+                      {(() => {
+                        const isAssignedToSales = !!lead.assigned_to && users.find(u => u._id === lead.assigned_to)?.role === 'sales';
+                        return (
+                          <Checkbox
+                            checked={selectedLeadIds.has(lead._id)}
+                            onCheckedChange={() => toggleSelectLead(lead._id)}
+                            disabled={isAssignedToSales}
+                            className={`border-2 border-primary/60 h-5 w-5 ${isAssignedToSales ? 'opacity-30 cursor-not-allowed' : ''}`}
+                          />
+                        );
+                      })()}
                     </TableCell>
                   )}
                   <TableCell>
