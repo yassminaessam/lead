@@ -197,13 +197,16 @@ export default function LeadsPage() {
   };
 
   const toggleSelectAll = () => {
-    const pageLeadIds = paginatedLeads.map(l => l._id);
-    const allPageSelected = pageLeadIds.length > 0 && pageLeadIds.every(id => selectedLeadIds.has(id));
+    // Only select unassigned leads
+    const unassignedPageLeadIds = paginatedLeads
+      .filter(l => !l.assigned_to)
+      .map(l => l._id);
+    const allUnassignedSelected = unassignedPageLeadIds.length > 0 && unassignedPageLeadIds.every(id => selectedLeadIds.has(id));
 
-    if (allPageSelected) {
+    if (allUnassignedSelected) {
       setSelectedLeadIds(new Set());
     } else {
-      setSelectedLeadIds(new Set(pageLeadIds));
+      setSelectedLeadIds(new Set(unassignedPageLeadIds));
     }
   };
 
@@ -445,7 +448,7 @@ export default function LeadsPage() {
                 {isAdmin && (
                   <TableHead className="w-12 text-center">
                     <Checkbox
-                      checked={paginatedLeads.length > 0 && paginatedLeads.every(lead => selectedLeadIds.has(lead._id))}
+                      checked={paginatedLeads.filter(l => !l.assigned_to).length > 0 && paginatedLeads.filter(l => !l.assigned_to).every(lead => selectedLeadIds.has(lead._id))}
                       onCheckedChange={toggleSelectAll}
                       className="border-2 border-primary/60 h-5 w-5"
                     />
@@ -472,7 +475,8 @@ const assignedUser = users.find(u => u._id === lead.assigned_to);
                       <Checkbox
                         checked={selectedLeadIds.has(lead._id)}
                         onCheckedChange={() => toggleSelectLead(lead._id)}
-                        className="border-2 border-primary/60 h-5 w-5"
+                        disabled={!!lead.assigned_to}
+                        className={`border-2 border-primary/60 h-5 w-5 ${lead.assigned_to ? 'opacity-30 cursor-not-allowed' : ''}`}
                       />
                     </TableCell>
                   )}
