@@ -47,6 +47,7 @@ import {
   UserPlus,
   X,
   CheckSquare,
+  Check,
 } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import CallModal from '../components/CallModal';
@@ -223,6 +224,16 @@ export default function LeadsPage() {
     );
     setSelectedLeadIds(new Set());
     setAssignToUserId('');
+  };
+
+  const handleSingleAssign = (leadId: string, userId: string) => {
+    updateLead(leadId, { assigned_to: userId || undefined }, currentUser?._id);
+    const targetUser = users.find(u => u._id === userId);
+    toast.success(
+      language === 'ar'
+        ? userId ? `تم تعيين العميل إلى ${targetUser?.name}` : 'تم إلغاء التعيين'
+        : userId ? `Lead assigned to ${targetUser?.name}` : 'Assignment removed'
+    );
   };
 
   const handleExportCSV = () => {
@@ -490,7 +501,33 @@ const assignedUser = users.find(u => u._id === lead.assigned_to);
                     <Badge variant="outline">{lead.source}</Badge>
                   </TableCell>
                   <TableCell>{getStatusBadge(lead.status)}</TableCell>
-                  <TableCell>{assignedUser?.name || '-'}</TableCell>
+                  <TableCell>
+                    {isAdmin ? (
+                      <Select 
+                        value={lead.assigned_to || ''} 
+                        onValueChange={(val) => handleSingleAssign(lead._id, val)}
+                      >
+                        <SelectTrigger className="w-36 h-8">
+                          <SelectValue placeholder={language === 'ar' ? 'غير مخصص' : 'Unassigned'} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">
+                            {language === 'ar' ? 'غير مخصص' : 'Unassigned'}
+                          </SelectItem>
+                          {salesUsers.map(u => (
+                            <SelectItem key={u._id} value={u._id}>
+                              <div className="flex items-center gap-2">
+                                {lead.assigned_to === u._id && <Check className="h-4 w-4 text-primary" />}
+                                <span>{u.name}</span>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      assignedUser?.name || '-'
+                    )}
+                  </TableCell>
                   <TableCell>
                     <div className="flex gap-1">
                       <Button
