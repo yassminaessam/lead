@@ -98,9 +98,11 @@ export default function LeadDetailsPage() {
             <Save className={`${language === 'ar' ? 'ml-2' : 'mr-2'} h-4 w-4`} />
             {language === 'ar' ? 'حفظ' : 'Save'}
           </Button>
-          <Button variant="destructive" onClick={handleDelete}>
-            {language === 'ar' ? 'حذف' : 'Delete'}
-          </Button>
+          {user?.role !== 'sales' && (
+            <Button variant="destructive" onClick={handleDelete}>
+              {language === 'ar' ? 'حذف' : 'Delete'}
+            </Button>
+          )}
         </div>
       </div>
 
@@ -182,62 +184,64 @@ export default function LeadDetailsPage() {
             </CardContent>
           </Card>
 
-          {/* Call History */}
-          <Card>
-            <CardHeader>
-              <CardTitle>{language === 'ar' ? 'سجل المكالمات' : 'Call History'} ({leadCalls.length})</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {leadCalls.length === 0 ? (
-                <p className="text-gray-500 text-center py-4">{language === 'ar' ? 'لا توجد مكالمات بعد' : 'No calls yet'}</p>
-              ) : (
-                <div className="space-y-4">
-                  {leadCalls.map((call) => {
-                    const caller = users.find(u => u._id === call.user_id);
-                    const resultLabels: Record<string, string> = {
-                      answered: language === 'ar' ? 'رد على المكالمة' : 'Answered',
-                      no_answer: language === 'ar' ? 'لم يرد' : 'No Answer',
-                      busy: language === 'ar' ? 'مشغول' : 'Busy',
-                      rejected: language === 'ar' ? 'رفض' : 'Rejected',
-                      voicemail: language === 'ar' ? 'بريد صوتي' : 'Voicemail',
-                    };
-                    
-                    return (
-                      <div key={call._id} className="border-r-4 border-blue-500 pr-4 pb-4 border-b last:border-b-0">
-                        <div className="flex items-start justify-between mb-2">
-                          <div>
-                            <Badge>{resultLabels[call.result]}</Badge>
-                            <p className="text-sm text-gray-500 mt-1">
-                              <Clock className="inline h-3 w-3 ml-1" />
-                              {new Date(call.created_at).toLocaleDateString(language === 'ar' ? 'ar-EG' : 'en-US', {
-                                year: 'numeric',
-                                month: 'long',
-                                day: 'numeric',
-                                hour: '2-digit',
-                                minute: '2-digit'
-                              })}
+          {/* Call History - Hidden for sales role */}
+          {user?.role !== 'sales' && (
+            <Card>
+              <CardHeader>
+                <CardTitle>{language === 'ar' ? 'سجل المكالمات' : 'Call History'} ({leadCalls.length})</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {leadCalls.length === 0 ? (
+                  <p className="text-gray-500 text-center py-4">{language === 'ar' ? 'لا توجد مكالمات بعد' : 'No calls yet'}</p>
+                ) : (
+                  <div className="space-y-4">
+                    {leadCalls.map((call) => {
+                      const caller = users.find(u => u._id === call.user_id);
+                      const resultLabels: Record<string, string> = {
+                        answered: language === 'ar' ? 'رد على المكالمة' : 'Answered',
+                        no_answer: language === 'ar' ? 'لم يرد' : 'No Answer',
+                        busy: language === 'ar' ? 'مشغول' : 'Busy',
+                        rejected: language === 'ar' ? 'رفض' : 'Rejected',
+                        voicemail: language === 'ar' ? 'بريد صوتي' : 'Voicemail',
+                      };
+                      
+                      return (
+                        <div key={call._id} className="border-r-4 border-blue-500 pr-4 pb-4 border-b last:border-b-0">
+                          <div className="flex items-start justify-between mb-2">
+                            <div>
+                              <Badge>{resultLabels[call.result]}</Badge>
+                              <p className="text-sm text-gray-500 mt-1">
+                                <Clock className="inline h-3 w-3 ml-1" />
+                                {new Date(call.created_at).toLocaleDateString(language === 'ar' ? 'ar-EG' : 'en-US', {
+                                  year: 'numeric',
+                                  month: 'long',
+                                  day: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })}
+                              </p>
+                            </div>
+                            <div className="text-left">
+                              <p className="text-sm font-medium">{caller?.name}</p>
+                              <p className="text-sm text-gray-500">{language === 'ar' ? 'المدة' : 'Duration'}: {call.duration}{language === 'ar' ? 'ث' : 's'}</p>
+                            </div>
+                          </div>
+                          {call.notes && (
+                            <p className="text-sm text-gray-700 mt-2">{call.notes}</p>
+                          )}
+                          {call.next_followup && (
+                            <p className="text-sm text-blue-600 mt-2">
+                              {language === 'ar' ? 'متابعة' : 'Follow-up'}: {new Date(call.next_followup).toLocaleDateString(language === 'ar' ? 'ar-EG' : 'en-US')}
                             </p>
-                          </div>
-                          <div className="text-left">
-                            <p className="text-sm font-medium">{caller?.name}</p>
-                            <p className="text-sm text-gray-500">{language === 'ar' ? 'المدة' : 'Duration'}: {call.duration}{language === 'ar' ? 'ث' : 's'}</p>
-                          </div>
+                          )}
                         </div>
-                        {call.notes && (
-                          <p className="text-sm text-gray-700 mt-2">{call.notes}</p>
-                        )}
-                        {call.next_followup && (
-                          <p className="text-sm text-blue-600 mt-2">
-                            {language === 'ar' ? 'متابعة' : 'Follow-up'}: {new Date(call.next_followup).toLocaleDateString(language === 'ar' ? 'ar-EG' : 'en-US')}
-                          </p>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                      );
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         {/* Sidebar */}

@@ -49,7 +49,7 @@ export default function DashboardLayout() {
     ...(!isSales ? [{ icon: PhoneCall, label: t('calls'), path: '/dashboard/calls' }] : []),
     ...(!isSales ? [{ icon: Radio, label: t('auto_dial'), path: '/dashboard/auto-dial' }] : []),
     ...(!isSales ? [{ icon: Upload, label: t('import'), path: '/dashboard/import' }] : []),
-    { icon: Activity, label: t('recent_activity'), path: '/dashboard/activity' },
+    ...(!isSales ? [{ icon: Activity, label: t('recent_activity'), path: '/dashboard/activity' }] : []),
     ...(!isSales ? [{ icon: FileText, label: t('templates'), path: '/dashboard/templates' }] : []),
     { icon: Calendar, label: t('calendar'), path: '/dashboard/calendar' },
     ...(!isSales ? [{ icon: BarChart3, label: t('reports'), path: '/dashboard/reports' }] : []),

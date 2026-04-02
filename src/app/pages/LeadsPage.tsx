@@ -265,10 +265,12 @@ export default function LeadsPage() {
             <Download className={`${language === 'ar' ? 'ml-2' : 'mr-2'} h-4 w-4`} />
             {t('export_csv')}
           </Button>
-          <Button onClick={() => setIsAddModalOpen(true)}>
-            <Plus className={`${language === 'ar' ? 'ml-2' : 'mr-2'} h-4 w-4`} />
-            {t('add_customer')}
-          </Button>
+          {currentUser?.role !== 'sales' && (
+            <Button onClick={() => setIsAddModalOpen(true)}>
+              <Plus className={`${language === 'ar' ? 'ml-2' : 'mr-2'} h-4 w-4`} />
+              {t('add_customer')}
+            </Button>
+          )}
         </div>
       </div>
 
@@ -499,31 +501,33 @@ const assignedUser = users.find(u => u._id === lead.assigned_to);
                       >
                         <Eye className="h-4 w-4" />
                       </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleEdit(lead)}
-                        title={language === 'ar' ? 'تعديل' : 'Edit'}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
                       {currentUser?.role !== 'sales' && (
-                        <Button
-                          size="sm"
-                          onClick={() => handleCall(lead)}
-                          title={language === 'ar' ? 'اتصال' : 'Call'}
-                        >
-                          <Phone className="h-4 w-4" />
-                        </Button>
+                        <>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleEdit(lead)}
+                            title={language === 'ar' ? 'تعديل' : 'Edit'}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => handleCall(lead)}
+                            title={language === 'ar' ? 'اتصال' : 'Call'}
+                          >
+                            <Phone className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => handleDelete(lead)}
+                            title={language === 'ar' ? 'حذف' : 'Delete'}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </>
                       )}
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => handleDelete(lead)}
-                        title={language === 'ar' ? 'حذف' : 'Delete'}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
                     </div>
                   </TableCell>
                 </TableRow>
