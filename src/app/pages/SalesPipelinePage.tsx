@@ -193,12 +193,8 @@ export default function SalesPipelinePage() {
       </div>
 
       {/* Pipeline Board */}
-      <div 
-        className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 overflow-x-auto ${isArabic ? 'direction-rtl' : ''}`} 
-        dir={isArabic ? 'rtl' : 'ltr'}
-        style={{ direction: isArabic ? 'rtl' : 'ltr' }}
-      >
-        {(isArabic ? [...stages].reverse() : stages).map(stage => (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 overflow-x-auto">
+        {stages.map(stage => (
           <div
             key={stage.key}
             className="min-w-[200px] max-w-full min-h-0 rounded-xl border bg-card overflow-hidden"
