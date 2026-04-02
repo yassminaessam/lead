@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useCRM } from '../contexts/CRMContext';
 import { useAuth } from '../contexts/AuthContext';
 import { Lead } from '../types';
@@ -23,6 +23,15 @@ import {
   TableRow,
 } from '../components/ui/table';
 import { Card } from '../components/ui/card';
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from '../components/ui/pagination';
 import {
   Search, 
   Filter, 
@@ -61,6 +70,9 @@ export default function LeadsPage() {
   const [cardFilter, setCardFilter] = useState<string>('all');
   const [selectedLeadIds, setSelectedLeadIds] = useState<Set<string>>(new Set());
   const [assignToUserId, setAssignToUserId] = useState<string>('');
+  const [currentPage, setCurrentPage] = useState(1);
+
+  const LEADS_PER_PAGE = 50;
 
   const isAdmin = currentUser?.role === 'admin';
   const isManager = currentUser?.role === 'manager';
@@ -79,7 +91,7 @@ export default function LeadsPage() {
     : leads;
 
   // Filter leads - تطبيق باقي الفلاتر
-  const filteredLeads = userLeads.filter(lead => {
+  const filteredLeads = useMemo(() => userLeads.filter(lead => {
     const matchesSearch = 
       lead.company_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       lead.phone.includes(searchQuery) ||
@@ -94,7 +106,35 @@ export default function LeadsPage() {
     else if (cardFilter === 'new') matchesCard = lead.status === 'new';
 
     return matchesSearch && matchesStatus && matchesIndustry && matchesCard;
-  });
+  }), [userLeads, searchQuery, statusFilter, industryFilter, cardFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredLeads.length / LEADS_PER_PAGE));
+  const startIndex = (currentPage - 1) * LEADS_PER_PAGE;
+  const paginatedLeads = filteredLeads.slice(startIndex, startIndex + LEADS_PER_PAGE);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, statusFilter, industryFilter, cardFilter]);
+
+  useEffect(() => {
+    setCurrentPage(prev => Math.min(prev, totalPages));
+  }, [totalPages]);
+
+  const getVisiblePages = () => {
+    if (totalPages <= 7) {
+      return Array.from({ length: totalPages }, (_, index) => index + 1);
+    }
+
+    if (currentPage <= 4) {
+      return [1, 2, 3, 4, 5, 'ellipsis', totalPages] as const;
+    }
+
+    if (currentPage >= totalPages - 3) {
+      return [1, 'ellipsis', totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages] as const;
+    }
+
+    return [1, 'ellipsis', currentPage - 1, currentPage, currentPage + 1, 'ellipsis', totalPages] as const;
+  };
 
   const getStatusBadge = (status: string) => {
     // Using rgba colors that work in both light and dark modes
@@ -156,10 +196,13 @@ export default function LeadsPage() {
   };
 
   const toggleSelectAll = () => {
-    if (selectedLeadIds.size === filteredLeads.length) {
+    const pageLeadIds = paginatedLeads.map(l => l._id);
+    const allPageSelected = pageLeadIds.length > 0 && pageLeadIds.every(id => selectedLeadIds.has(id));
+
+    if (allPageSelected) {
       setSelectedLeadIds(new Set());
     } else {
-      setSelectedLeadIds(new Set(filteredLeads.map(l => l._id)));
+      setSelectedLeadIds(new Set(pageLeadIds));
     }
   };
 
@@ -388,7 +431,7 @@ export default function LeadsPage() {
               {isAdmin && (
                 <TableHead className="w-12 text-center">
                   <Checkbox
-                    checked={filteredLeads.length > 0 && selectedLeadIds.size === filteredLeads.length}
+                    checked={paginatedLeads.length > 0 && paginatedLeads.every(lead => selectedLeadIds.has(lead._id))}
                     onCheckedChange={toggleSelectAll}
                     className="border-2 border-primary/60 h-5 w-5"
                   />
@@ -405,7 +448,7 @@ export default function LeadsPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredLeads.map((lead) => {
+            {paginatedLeads.map((lead) => {
 const assignedUser = users.find(u => u._id === lead.assigned_to);
               
               return (
@@ -489,6 +532,67 @@ const assignedUser = users.find(u => u._id === lead.assigned_to);
           </TableBody>
         </Table>
       </Card>
+
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <p className="text-sm text-muted-foreground">
+            {language === 'ar'
+              ? `عرض ${startIndex + 1}-${Math.min(startIndex + LEADS_PER_PAGE, filteredLeads.length)} من ${filteredLeads.length}`
+              : `Showing ${startIndex + 1}-${Math.min(startIndex + LEADS_PER_PAGE, filteredLeads.length)} of ${filteredLeads.length}`}
+          </p>
+
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  href="#"
+                  onClick={(event) => {
+                    event.preventDefault();
+                    if (currentPage > 1) setCurrentPage(currentPage - 1);
+                  }}
+                  className={currentPage === 1 ? 'pointer-events-none opacity-50' : ''}
+                />
+              </PaginationItem>
+
+              {getVisiblePages().map((page, index) => {
+                if (page === 'ellipsis') {
+                  return (
+                    <PaginationItem key={`ellipsis-${index}`}>
+                      <PaginationEllipsis />
+                    </PaginationItem>
+                  );
+                }
+
+                return (
+                  <PaginationItem key={`page-${page}`}>
+                    <PaginationLink
+                      href="#"
+                      isActive={currentPage === page}
+                      onClick={(event) => {
+                        event.preventDefault();
+                        setCurrentPage(page);
+                      }}
+                    >
+                      {page}
+                    </PaginationLink>
+                  </PaginationItem>
+                );
+              })}
+
+              <PaginationItem>
+                <PaginationNext
+                  href="#"
+                  onClick={(event) => {
+                    event.preventDefault();
+                    if (currentPage < totalPages) setCurrentPage(currentPage + 1);
+                  }}
+                  className={currentPage === totalPages ? 'pointer-events-none opacity-50' : ''}
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        </div>
+      )}
 
       {/* Modals */}
       {selectedLead && (
