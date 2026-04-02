@@ -151,8 +151,10 @@ export default function SalesPipelinePage() {
     voicemail: language === 'ar' ? 'بريد صوتي' : 'Voicemail',
   };
 
+  const isArabic = language === 'ar';
+
   return (
-    <div className="p-8 space-y-6">
+    <div className="p-8 space-y-6" dir={isArabic ? 'rtl' : 'ltr'}>
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
@@ -191,11 +193,11 @@ export default function SalesPipelinePage() {
       </div>
 
       {/* Pipeline Board */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 overflow-x-auto">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 overflow-x-auto" dir={isArabic ? 'rtl' : 'ltr'}>
         {stages.map(stage => (
           <div
             key={stage.key}
-            className="min-w-[240px] rounded-xl border bg-card"
+            className="min-w-[240px] rounded-xl border bg-card overflow-hidden"
             onDragOver={handleDragOver}
             onDrop={(e) => handleDrop(e, stage.key)}
           >
@@ -228,32 +230,32 @@ export default function SalesPipelinePage() {
                     key={lead._id}
                     draggable
                     onDragStart={() => handleDragStart(lead._id)}
-                    className="p-3 rounded-lg border bg-background hover:shadow-md transition-all cursor-grab active:cursor-grabbing group"
+                    className="p-3 rounded-lg border bg-background hover:shadow-md transition-all cursor-grab active:cursor-grabbing group overflow-hidden"
                   >
-                    <div className="font-medium text-sm mb-2 truncate">
+                    <div className="font-medium text-sm mb-2 truncate max-w-full" title={lead.company_name}>
                       {lead.company_name}
                     </div>
-                    <div className="space-y-1 text-xs text-muted-foreground">
-                      <div className="flex items-center gap-1">
+                    <div className="space-y-1 text-xs text-muted-foreground min-w-0">
+                      <div className="flex items-center gap-1 min-w-0">
                         <Building2 className="h-3 w-3" />
-                        {lead.industry}
+                        <span className="truncate max-w-full">{lead.industry}</span>
                       </div>
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1 min-w-0">
                         <MapPin className="h-3 w-3" />
-                        {lead.city}
+                        <span className="truncate max-w-full">{lead.city}</span>
                       </div>
-                      <div className="flex items-center gap-1" dir="ltr">
+                      <div className="flex items-center gap-1 min-w-0" dir="ltr">
                         <Phone className="h-3 w-3" />
-                        {lead.phone}
+                        <span className="truncate max-w-full">{lead.phone}</span>
                       </div>
                     </div>
 
                     {/* Actions */}
-                    <div className="flex gap-1 mt-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex gap-1 mt-3 opacity-0 group-hover:opacity-100 transition-opacity w-full min-w-0">
                       <Button
                         size="sm"
                         variant="outline"
-                        className="h-7 text-xs flex-1"
+                        className="h-7 text-xs flex-1 min-w-0 px-2"
                         onClick={() => navigate(`/dashboard/leads/${lead._id}`)}
                       >
                         <Eye className="h-3 w-3" />
@@ -261,7 +263,7 @@ export default function SalesPipelinePage() {
                       <Button
                         size="sm"
                         variant="outline"
-                        className="h-7 text-xs flex-1"
+                        className="h-7 text-xs flex-1 min-w-0 px-2"
                         onClick={() => {
                           setLogCallLead(lead);
                           setCallForm({ ...emptyCallForm });
@@ -273,7 +275,7 @@ export default function SalesPipelinePage() {
                       <Select
                         onValueChange={(val) => handleMoveLead(lead._id, val as PipelineStage)}
                       >
-                        <SelectTrigger className="h-7 text-xs flex-1 px-1">
+                        <SelectTrigger className="h-7 text-xs flex-1 min-w-0 px-1">
                           <ArrowLeftRight className="h-3 w-3" />
                         </SelectTrigger>
                         <SelectContent>
