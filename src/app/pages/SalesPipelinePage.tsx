@@ -204,11 +204,11 @@ export default function SalesPipelinePage() {
           >
             {/* Column Header */}
             <div
-              className={`p-3 rounded-t-xl border-b flex items-center justify-between ${isArabic ? 'flex-row-reverse' : ''}`}
+              className="p-3 rounded-t-xl border-b flex items-center justify-between"
               style={{ backgroundColor: stage.bgColor }}
               dir={isArabic ? 'rtl' : 'ltr'}
             >
-              <div className={`flex items-center gap-2 ${isArabic ? 'flex-row-reverse' : ''}`}>
+              <div className="flex items-center gap-2">
                 <div
                   className="w-3 h-3 rounded-full shrink-0"
                   style={{ backgroundColor: stage.color }}
@@ -236,24 +236,23 @@ export default function SalesPipelinePage() {
                     dir={isArabic ? 'rtl' : 'ltr'}
                   >
                     <div 
-                      className={`font-medium text-sm mb-2 truncate max-w-full ${isArabic ? 'text-right' : 'text-left'}`} 
-                      title={lead.company_name}
+                      className={`font-medium text-sm mb-2 ${isArabic ? 'text-right' : 'text-left'}`} 
                       dir={isArabic ? 'rtl' : 'ltr'}
                     >
                       {lead.company_name}
                     </div>
-                    <div className="space-y-1 text-xs text-muted-foreground w-full overflow-hidden" dir={isArabic ? 'rtl' : 'ltr'}>
-                      <div className={`flex items-center gap-1 w-full overflow-hidden ${isArabic ? 'flex-row-reverse justify-end' : ''}`}>
-                        <Building2 className="h-3 w-3 shrink-0" />
-                        <span className="truncate flex-1 min-w-0">{lead.industry}</span>
+                    <div className="space-y-1 text-xs text-muted-foreground w-full" dir={isArabic ? 'rtl' : 'ltr'}>
+                      <div className="flex items-start gap-1.5 w-full">
+                        <Building2 className="h-3 w-3 shrink-0 mt-0.5" />
+                        <span className="flex-1 break-words">{lead.industry}</span>
                       </div>
-                      <div className={`flex items-center gap-1 w-full overflow-hidden ${isArabic ? 'flex-row-reverse justify-end' : ''}`}>
-                        <MapPin className="h-3 w-3 shrink-0" />
-                        <span className="truncate flex-1 min-w-0">{lead.city}</span>
+                      <div className="flex items-start gap-1.5 w-full">
+                        <MapPin className="h-3 w-3 shrink-0 mt-0.5" />
+                        <span className="flex-1 break-words">{lead.city}</span>
                       </div>
-                      <div className={`flex items-center gap-1 w-full overflow-hidden ${isArabic ? 'flex-row-reverse justify-end' : ''}`} dir="ltr">
-                        <Phone className="h-3 w-3 shrink-0" />
-                        <span className="truncate flex-1 min-w-0">{lead.phone}</span>
+                      <div className="flex items-start gap-1.5 w-full">
+                        <Phone className="h-3 w-3 shrink-0 mt-0.5" />
+                        <span className="flex-1 break-words" dir="ltr">{lead.phone}</span>
                       </div>
                     </div>
 
