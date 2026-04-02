@@ -504,14 +504,14 @@ const assignedUser = users.find(u => u._id === lead.assigned_to);
                   <TableCell>
                     {isAdmin ? (
                       <Select 
-                        value={lead.assigned_to || ''} 
-                        onValueChange={(val) => handleSingleAssign(lead._id, val)}
+                        value={lead.assigned_to || 'unassigned'} 
+                        onValueChange={(val) => handleSingleAssign(lead._id, val === 'unassigned' ? '' : val)}
                       >
                         <SelectTrigger className="w-36 h-8">
                           <SelectValue placeholder={language === 'ar' ? 'غير مخصص' : 'Unassigned'} />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">
+                          <SelectItem value="unassigned">
                             {language === 'ar' ? 'غير مخصص' : 'Unassigned'}
                           </SelectItem>
                           {salesUsers.map(u => (
