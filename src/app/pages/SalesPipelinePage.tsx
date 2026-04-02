@@ -252,7 +252,7 @@ export default function SalesPipelinePage() {
                       </div>
                       <div className="flex items-start gap-1.5 w-full">
                         <Phone className="h-3 w-3 shrink-0 mt-0.5" />
-                        <span className="flex-1 break-words" dir="ltr">{lead.phone}</span>
+                        <span className="flex-1 break-words text-start" style={{ direction: 'ltr', unicodeBidi: 'embed' }}>{lead.phone}</span>
                       </div>
                     </div>
 
