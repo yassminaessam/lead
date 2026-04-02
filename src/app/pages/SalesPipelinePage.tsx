@@ -193,35 +193,41 @@ export default function SalesPipelinePage() {
       </div>
 
       {/* Pipeline Board */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 overflow-x-auto" dir={isArabic ? 'rtl' : 'ltr'}>
-        {stages.map(stage => (
+      <div 
+        className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 overflow-x-auto ${isArabic ? 'direction-rtl' : ''}`} 
+        dir={isArabic ? 'rtl' : 'ltr'}
+        style={{ direction: isArabic ? 'rtl' : 'ltr' }}
+      >
+        {(isArabic ? [...stages].reverse() : stages).map(stage => (
           <div
             key={stage.key}
-            className="min-w-[240px] min-h-0 rounded-xl border bg-card overflow-hidden"
+            className="min-w-[200px] max-w-full min-h-0 rounded-xl border bg-card overflow-hidden"
+            dir={isArabic ? 'rtl' : 'ltr'}
             onDragOver={handleDragOver}
             onDrop={(e) => handleDrop(e, stage.key)}
           >
             {/* Column Header */}
             <div
-              className="p-3 rounded-t-xl border-b flex items-center justify-between"
+              className={`p-3 rounded-t-xl border-b flex items-center justify-between ${isArabic ? 'flex-row-reverse' : ''}`}
               style={{ backgroundColor: stage.bgColor }}
+              dir={isArabic ? 'rtl' : 'ltr'}
             >
-              <div className="flex items-center gap-2">
+              <div className={`flex items-center gap-2 ${isArabic ? 'flex-row-reverse' : ''}`}>
                 <div
-                  className="w-3 h-3 rounded-full"
+                  className="w-3 h-3 rounded-full shrink-0"
                   style={{ backgroundColor: stage.color }}
                 />
-                <span className="font-semibold text-sm">{stageLabels[stage.key]}</span>
+                <span className="font-semibold text-sm whitespace-nowrap">{stageLabels[stage.key]}</span>
               </div>
-              <Badge variant="secondary" className="text-xs">
+              <Badge variant="secondary" className="text-xs shrink-0">
                 {getLeadsForStage(stage.key).length}
               </Badge>
             </div>
 
             {/* Lead Cards */}
-            <div className="p-2 space-y-2 min-h-[200px]">
+            <div className="p-2 space-y-2 min-h-[200px]" dir={isArabic ? 'rtl' : 'ltr'}>
               {getLeadsForStage(stage.key).length === 0 ? (
-                <p className="text-xs text-muted-foreground text-center py-8">
+                <p className="text-xs text-muted-foreground text-center py-8" dir={isArabic ? 'rtl' : 'ltr'}>
                   {t('no_leads_in_stage')}
                 </p>
               ) : (
@@ -231,31 +237,36 @@ export default function SalesPipelinePage() {
                     draggable
                     onDragStart={() => handleDragStart(lead._id)}
                     className="w-full max-w-full p-3 rounded-lg border bg-background hover:shadow-md transition-all cursor-grab active:cursor-grabbing group overflow-hidden"
+                    dir={isArabic ? 'rtl' : 'ltr'}
                   >
-                    <div className="font-medium text-sm mb-2 truncate max-w-full" title={lead.company_name}>
+                    <div 
+                      className={`font-medium text-sm mb-2 truncate max-w-full ${isArabic ? 'text-right' : 'text-left'}`} 
+                      title={lead.company_name}
+                      dir={isArabic ? 'rtl' : 'ltr'}
+                    >
                       {lead.company_name}
                     </div>
-                    <div className="space-y-1 text-xs text-muted-foreground min-w-0" dir={isArabic ? 'rtl' : 'ltr'}>
-                      <div className="flex items-center gap-1 min-w-0">
+                    <div className="space-y-1 text-xs text-muted-foreground w-full overflow-hidden" dir={isArabic ? 'rtl' : 'ltr'}>
+                      <div className={`flex items-center gap-1 w-full overflow-hidden ${isArabic ? 'flex-row-reverse justify-end' : ''}`}>
                         <Building2 className="h-3 w-3 shrink-0" />
-                        <span className="truncate max-w-full">{lead.industry}</span>
+                        <span className="truncate flex-1 min-w-0">{lead.industry}</span>
                       </div>
-                      <div className="flex items-center gap-1 min-w-0">
+                      <div className={`flex items-center gap-1 w-full overflow-hidden ${isArabic ? 'flex-row-reverse justify-end' : ''}`}>
                         <MapPin className="h-3 w-3 shrink-0" />
-                        <span className="truncate max-w-full">{lead.city}</span>
+                        <span className="truncate flex-1 min-w-0">{lead.city}</span>
                       </div>
-                      <div className="flex items-center gap-1 min-w-0" dir="ltr">
+                      <div className={`flex items-center gap-1 w-full overflow-hidden ${isArabic ? 'flex-row-reverse justify-end' : ''}`} dir="ltr">
                         <Phone className="h-3 w-3 shrink-0" />
-                        <span className="block w-full whitespace-normal break-all leading-tight">{lead.phone}</span>
+                        <span className="truncate flex-1 min-w-0">{lead.phone}</span>
                       </div>
                     </div>
 
                     {/* Actions */}
-                    <div className="mt-3 grid grid-cols-3 gap-1 w-full min-w-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                    <div className="mt-3 grid grid-cols-3 gap-1 w-full opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity" dir={isArabic ? 'rtl' : 'ltr'}>
                       <Button
                         size="sm"
                         variant="outline"
-                        className="h-7 w-full min-w-0 px-0"
+                        className="h-7 w-full px-0"
                         onClick={() => navigate(`/dashboard/leads/${lead._id}`)}
                       >
                         <Eye className="h-3 w-3" />
@@ -263,7 +274,7 @@ export default function SalesPipelinePage() {
                       <Button
                         size="sm"
                         variant="outline"
-                        className="h-7 w-full min-w-0 px-0"
+                        className="h-7 w-full px-0"
                         onClick={() => {
                           setLogCallLead(lead);
                           setCallForm({ ...emptyCallForm });
@@ -275,7 +286,7 @@ export default function SalesPipelinePage() {
                       <Select
                         onValueChange={(val) => handleMoveLead(lead._id, val as PipelineStage)}
                       >
-                        <SelectTrigger className="h-7 w-full min-w-0 px-1 justify-center [&>span]:hidden">
+                        <SelectTrigger className="h-7 w-full px-1 justify-center [&>span]:hidden">
                           <ArrowLeftRight className="h-3 w-3" />
                         </SelectTrigger>
                         <SelectContent>
