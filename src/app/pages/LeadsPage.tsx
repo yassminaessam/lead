@@ -454,6 +454,8 @@ export default function LeadsPage() {
                 <TableHead>{t('company')}</TableHead>
                 <TableHead>{t('phone')}</TableHead>
                 <TableHead>{t('industry')}</TableHead>
+                <TableHead>{t('city')}</TableHead>
+                <TableHead>{t('source')}</TableHead>
                 <TableHead>{t('assigned_to')}</TableHead>
                 <TableHead>{t('status')}</TableHead>
                 <TableHead>{t('actions')}</TableHead>
@@ -495,13 +497,18 @@ const assignedUser = users.find(u => u._id === lead.assigned_to);
                   </TableCell>
                   <TableCell dir="ltr" className="text-right">{lead.phone}</TableCell>
                   <TableCell>{lead.industry}</TableCell>
+                  <TableCell>{lead.city}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline">{lead.source}</Badge>
+                  </TableCell>
                   <TableCell>
                     {isAdmin ? (
                       <Select 
                         value={lead.assigned_to || 'unassigned'} 
                         onValueChange={(val) => handleSingleAssign(lead._id, val === 'unassigned' ? '' : val)}
+                        disabled={!!lead.assigned_to && users.find(u => u._id === lead.assigned_to)?.role === 'sales'}
                       >
-                        <SelectTrigger className="w-36 h-8">
+                        <SelectTrigger className={`w-36 h-8 ${lead.assigned_to && users.find(u => u._id === lead.assigned_to)?.role === 'sales' ? 'opacity-70' : ''}`}>
                           <SelectValue placeholder={language === 'ar' ? 'غير مخصص' : 'Unassigned'} />
                         </SelectTrigger>
                         <SelectContent>
