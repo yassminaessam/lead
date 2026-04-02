@@ -438,28 +438,27 @@ export default function LeadsPage() {
 
       {/* Table */}
       <Card className="card-hover overflow-hidden p-0">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              {isAdmin && (
-                <TableHead className="w-12 text-center">
-                  <Checkbox
-                    checked={paginatedLeads.length > 0 && paginatedLeads.every(lead => selectedLeadIds.has(lead._id))}
-                    onCheckedChange={toggleSelectAll}
-                    className="border-2 border-primary/60 h-5 w-5"
-                  />
-                </TableHead>
-              )}
-              <TableHead>{t('company')}</TableHead>
-              <TableHead>{t('phone')}</TableHead>
-              <TableHead>{t('industry')}</TableHead>
-              <TableHead>{t('city')}</TableHead>
-              <TableHead>{t('source')}</TableHead>
-              <TableHead>{t('status')}</TableHead>
-              <TableHead>{t('assigned_to')}</TableHead>
-              <TableHead>{t('actions')}</TableHead>
-            </TableRow>
-          </TableHeader>
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                {isAdmin && (
+                  <TableHead className="w-12 text-center">
+                    <Checkbox
+                      checked={paginatedLeads.length > 0 && paginatedLeads.every(lead => selectedLeadIds.has(lead._id))}
+                      onCheckedChange={toggleSelectAll}
+                      className="border-2 border-primary/60 h-5 w-5"
+                    />
+                  </TableHead>
+                )}
+                <TableHead>{t('company')}</TableHead>
+                <TableHead>{t('phone')}</TableHead>
+                <TableHead>{t('industry')}</TableHead>
+                <TableHead>{t('assigned_to')}</TableHead>
+                <TableHead>{t('status')}</TableHead>
+                <TableHead>{t('actions')}</TableHead>
+              </TableRow>
+            </TableHeader>
           <TableBody>
             {paginatedLeads.map((lead) => {
 const assignedUser = users.find(u => u._id === lead.assigned_to);
@@ -496,11 +495,6 @@ const assignedUser = users.find(u => u._id === lead.assigned_to);
                   </TableCell>
                   <TableCell dir="ltr" className="text-right">{lead.phone}</TableCell>
                   <TableCell>{lead.industry}</TableCell>
-                  <TableCell>{lead.city}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline">{lead.source}</Badge>
-                  </TableCell>
-                  <TableCell>{getStatusBadge(lead.status)}</TableCell>
                   <TableCell>
                     {isAdmin ? (
                       <Select 
@@ -528,6 +522,7 @@ const assignedUser = users.find(u => u._id === lead.assigned_to);
                       assignedUser?.name || '-'
                     )}
                   </TableCell>
+                  <TableCell>{getStatusBadge(lead.status)}</TableCell>
                   <TableCell>
                     <div className="flex gap-1">
                       <Button
@@ -572,6 +567,7 @@ const assignedUser = users.find(u => u._id === lead.assigned_to);
             })}
           </TableBody>
         </Table>
+        </div>
       </Card>
 
       {totalPages > 1 && (
