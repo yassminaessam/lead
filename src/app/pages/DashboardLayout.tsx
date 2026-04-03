@@ -73,7 +73,7 @@ export default function DashboardLayout() {
         onMouseEnter={() => setIsSidebarExpanded(true)}
         onMouseLeave={() => setIsSidebarExpanded(false)}
       >
-        <div className="p-6 flex-1 overflow-y-auto pb-4 overflow-x-hidden">
+        <div className="p-6 flex-1 overflow-y-auto pb-4 overflow-x-hidden scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
           {/* Logo Section - Elite Style */}
           <div className="flex items-center gap-3 mb-8">
             <div className="w-12 h-12 rounded-xl flex items-center justify-center relative overflow-hidden bg-muted group cursor-pointer shrink-0">
@@ -140,7 +140,7 @@ export default function DashboardLayout() {
       </aside>
 
       {/* Main Content */}
-      <main className={`${language === 'ar' ? 'mr-16' : 'ml-16'} min-h-screen transition-all duration-300`}>
+      <main className={`${language === 'ar' ? (isSidebarExpanded ? 'mr-64' : 'mr-16') : (isSidebarExpanded ? 'ml-64' : 'ml-16')} min-h-screen transition-all duration-300`}>
         {/* Modern Top Bar with Glass Effect */}
         <div className="sticky top-0 z-20 bg-card/80 backdrop-blur-xl border-b border-border px-6 py-3">
           <div className="flex items-center justify-between">
