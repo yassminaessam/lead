@@ -197,16 +197,19 @@ export default function LeadsPage() {
   };
 
   const toggleSelectAll = () => {
-    // Only select unassigned leads
-    const unassignedPageLeadIds = paginatedLeads
-      .filter(l => !l.assigned_to)
+    // Only select leads not assigned to sales
+    const selectableLeadIds = paginatedLeads
+      .filter(l => {
+        const assignedUserRole = users.find(u => u._id === l.assigned_to)?.role;
+        return assignedUserRole !== 'sales';
+      })
       .map(l => l._id);
-    const allUnassignedSelected = unassignedPageLeadIds.length > 0 && unassignedPageLeadIds.every(id => selectedLeadIds.has(id));
+    const allSelectableSelected = selectableLeadIds.length > 0 && selectableLeadIds.every(id => selectedLeadIds.has(id));
 
-    if (allUnassignedSelected) {
+    if (allSelectableSelected) {
       setSelectedLeadIds(new Set());
     } else {
-      setSelectedLeadIds(new Set(unassignedPageLeadIds));
+      setSelectedLeadIds(new Set(selectableLeadIds));
     }
   };
 
@@ -448,7 +451,13 @@ export default function LeadsPage() {
                 {isAdmin && (
                   <TableHead className="w-12 text-center">
                     <Checkbox
-                      checked={paginatedLeads.filter(l => !l.assigned_to).length > 0 && paginatedLeads.filter(l => !l.assigned_to).every(lead => selectedLeadIds.has(lead._id))}
+                      checked={paginatedLeads.filter(l => {
+                        const assignedUserRole = users.find(u => u._id === l.assigned_to)?.role;
+                        return assignedUserRole !== 'sales';
+                      }).length > 0 && paginatedLeads.filter(l => {
+                        const assignedUserRole = users.find(u => u._id === l.assigned_to)?.role;
+                        return assignedUserRole !== 'sales';
+                      }).every(lead => selectedLeadIds.has(lead._id))}
                       onCheckedChange={toggleSelectAll}
                       className="border-2 border-primary/60 h-5 w-5"
                     />
@@ -457,9 +466,9 @@ export default function LeadsPage() {
                 <TableHead>{t('company')}</TableHead>
                 <TableHead>{t('phone')}</TableHead>
                 <TableHead>{t('industry')}</TableHead>
-                <TableHead>{t('assigned_to')}</TableHead>
                 <TableHead>{t('city')}</TableHead>
                 <TableHead>{t('source')}</TableHead>
+                <TableHead>{t('assigned_to')}</TableHead>
                 <TableHead>{t('status')}</TableHead>
                 <TableHead>{t('actions')}</TableHead>
               </TableRow>
@@ -475,8 +484,8 @@ const assignedUser = users.find(u => u._id === lead.assigned_to);
                       <Checkbox
                         checked={selectedLeadIds.has(lead._id)}
                         onCheckedChange={() => toggleSelectLead(lead._id)}
-                        disabled={!!lead.assigned_to}
-                        className={`border-2 border-primary/60 h-5 w-5 ${lead.assigned_to ? 'opacity-30 cursor-not-allowed' : ''}`}
+                        disabled={assignedUser?.role === 'sales'}
+                        className={`border-2 border-primary/60 h-5 w-5 ${assignedUser?.role === 'sales' ? 'opacity-30 cursor-not-allowed' : ''}`}
                       />
                     </TableCell>
                   )}
@@ -501,6 +510,10 @@ const assignedUser = users.find(u => u._id === lead.assigned_to);
                   </TableCell>
                   <TableCell dir="ltr" className="text-right">{lead.phone}</TableCell>
                   <TableCell>{lead.industry}</TableCell>
+                  <TableCell>{lead.city}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline">{lead.source}</Badge>
+                  </TableCell>
                   <TableCell>
                     {isAdmin ? (
                       <Select 
@@ -527,10 +540,6 @@ const assignedUser = users.find(u => u._id === lead.assigned_to);
                     ) : (
                       assignedUser?.name || '-'
                     )}
-                  </TableCell>
-                  <TableCell>{lead.city}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline">{lead.source}</Badge>
                   </TableCell>
                   <TableCell>{getStatusBadge(lead.status)}</TableCell>
                   <TableCell>
