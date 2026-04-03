@@ -163,7 +163,20 @@ function Sidebar({
   variant?: "sidebar" | "floating" | "inset";
   collapsible?: "offcanvas" | "icon" | "none";
 }) {
-  const { isMobile, state, openMobile, setOpenMobile } = useSidebar();
+  const { isMobile, state, openMobile, setOpenMobile, setOpen } = useSidebar();
+
+  // Auto expand/collapse on hover
+  const handleMouseEnter = React.useCallback(() => {
+    if (!isMobile) {
+      setOpen(true);
+    }
+  }, [isMobile, setOpen]);
+
+  const handleMouseLeave = React.useCallback(() => {
+    if (!isMobile) {
+      setOpen(false);
+    }
+  }, [isMobile, setOpen]);
 
   if (collapsible === "none") {
     return (
@@ -213,6 +226,8 @@ function Sidebar({
       data-variant={variant}
       data-side={side}
       data-slot="sidebar"
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
     >
       {/* This is what handles the sidebar gap on desktop */}
       <div
