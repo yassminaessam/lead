@@ -465,8 +465,8 @@ export default function LeadsPage() {
                 )}
                 <TableHead>{t('company')}</TableHead>
                 <TableHead>{t('phone')}</TableHead>
-                <TableHead>{t('industry')}</TableHead>
                 <TableHead>{t('city')}</TableHead>
+                <TableHead>{t('industry')}</TableHead>
                 <TableHead>{t('source')}</TableHead>
                 <TableHead>{t('assigned_to')}</TableHead>
                 <TableHead>{t('status')}</TableHead>
@@ -509,8 +509,8 @@ const assignedUser = users.find(u => u._id === lead.assigned_to);
                     </div>
                   </TableCell>
                   <TableCell dir="ltr" className="text-right">{lead.phone}</TableCell>
-                  <TableCell>{lead.industry}</TableCell>
                   <TableCell>{lead.city}</TableCell>
+                  <TableCell>{lead.industry}</TableCell>
                   <TableCell>
                     <Badge variant="outline">{lead.source}</Badge>
                   </TableCell>
