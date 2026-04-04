@@ -1,5 +1,7 @@
 import { Router } from 'express';
 import Lead from '../models/Lead.js';
+import User from '../models/User.js';
+import { notifyNewLead } from '../services/notifications.js';
 
 const router = Router();
 
@@ -28,6 +30,19 @@ router.get('/:id', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const lead = await Lead.create(req.body);
+    
+    // Send notification to admins
+    try {
+      const admins = await User.find({ role: 'admin', isActive: true });
+      for (const admin of admins) {
+        notifyNewLead(lead, admin.email, admin.phone).catch(err => 
+          console.error('Failed to notify admin:', err.message)
+        );
+      }
+    } catch (notifyErr) {
+      console.error('Notification error:', notifyErr.message);
+    }
+    
     res.status(201).json(lead);
   } catch (err) {
     if (err.code === 11000) {

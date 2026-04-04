@@ -1,5 +1,8 @@
 import { Router } from 'express';
 import Call from '../models/Call.js';
+import Lead from '../models/Lead.js';
+import User from '../models/User.js';
+import { notifyMissedCall, notifyFollowUp } from '../services/notifications.js';
 
 const router = Router();
 
@@ -20,6 +23,32 @@ router.get('/', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const call = await Call.create(req.body);
+    
+    // Send notifications based on call result
+    try {
+      const lead = await Lead.findById(call.lead_id);
+      const user = await User.findById(call.user_id);
+      
+      if (lead && user) {
+        // Notify on missed/no answer calls
+        if (['no_answer', 'busy', 'rejected'].includes(call.result)) {
+          notifyMissedCall(lead, user.email, user.phone).catch(err =>
+            console.error('Failed to send missed call notification:', err.message)
+          );
+        }
+        
+        // Notify about follow-up if scheduled
+        if (call.next_followup) {
+          // Schedule follow-up notification (for now, send immediately as reminder)
+          notifyFollowUp(lead, call.next_followup, user.email, user.phone).catch(err =>
+            console.error('Failed to send follow-up notification:', err.message)
+          );
+        }
+      }
+    } catch (notifyErr) {
+      console.error('Notification error:', notifyErr.message);
+    }
+    
     res.status(201).json(call);
   } catch (err) {
     res.status(400).json({ error: err.message });

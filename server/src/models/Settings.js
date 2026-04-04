@@ -31,6 +31,11 @@ const settingsSchema = new mongoose.Schema({
   whatsappApiKey: { type: String, default: '' },
   whatsappPhoneNumber: { type: String, default: '' },
   whatsappTemplate: { type: String, default: 'مرحباً {name}، شكراً لاهتمامك بخدماتنا.' },
+  // Twilio for SMS
+  twilioAccountSid: { type: String, default: '' },
+  twilioAuthToken: { type: String, default: '' },
+  twilioPhoneNumber: { type: String, default: '' },
+  // API Keys
   phantombusterApiKey: { type: String, default: '' },
   openaiApiKey: { type: String, default: '' },
 });

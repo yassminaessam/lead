@@ -15,7 +15,9 @@ import settingsRouter from './routes/settings.js';
 import scrapeRouter from './routes/scrape.js';
 import backupRouter from './routes/backup.js';
 import emailRouter from './routes/email.js';
+import messagingRouter from './routes/messaging.js';
 import { setupSignaling, dialDevice } from './signaling.js';
+import { scheduleBackups } from './services/scheduler.js';
 import { fileURLToPath } from 'url';
 import path from 'path';
 
@@ -42,6 +44,7 @@ app.use('/api/settings', settingsRouter);
 app.use('/api/scrape', scrapeRouter);
 app.use('/api/backup', backupRouter);
 app.use('/api/email', emailRouter);
+app.use('/api/messaging', messagingRouter);
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -52,8 +55,12 @@ app.get('/api/health', (req, res) => {
 mongoose.connect(MONGODB_URI, {
   serverApi: { version: '1', strict: true, deprecationErrors: true },
 })
-  .then(() => {
+  .then(async () => {
     console.log('Connected to MongoDB');
+    
+    // Schedule automatic backups
+    await scheduleBackups();
+    
     const httpServer = createServer(app);
 
     // Socket.IO signaling server for WebRTC voice bridge

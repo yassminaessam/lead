@@ -50,6 +50,10 @@ export interface CRMSettings {
   whatsappApiKey: string;
   whatsappPhoneNumber: string;
   whatsappTemplate: string;
+  // Twilio SMS
+  twilioAccountSid: string;
+  twilioAuthToken: string;
+  twilioPhoneNumber: string;
   // APIs
   phantombusterApiKey: string;
   openaiApiKey: string;
@@ -85,6 +89,9 @@ const defaultSettings: CRMSettings = {
   whatsappApiKey: '',
   whatsappPhoneNumber: '',
   whatsappTemplate: 'مرحباً {name}، شكراً لاهتمامك بخدماتنا.',
+  twilioAccountSid: '',
+  twilioAuthToken: '',
+  twilioPhoneNumber: '',
   phantombusterApiKey: '',
   openaiApiKey: '',
 };

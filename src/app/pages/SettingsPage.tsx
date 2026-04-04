@@ -74,6 +74,12 @@ export default function SettingsPage() {
   const [whatsappPhoneNumber, setWhatsappPhoneNumber] = useState(settings.whatsappPhoneNumber);
   const [whatsappTemplate, setWhatsappTemplate] = useState(settings.whatsappTemplate);
 
+  // SMS/Twilio Settings
+  const [twilioAccountSid, setTwilioAccountSid] = useState(settings.twilioAccountSid);
+  const [twilioAuthToken, setTwilioAuthToken] = useState(settings.twilioAuthToken);
+  const [twilioPhoneNumber, setTwilioPhoneNumber] = useState(settings.twilioPhoneNumber);
+  const [showTwilioToken, setShowTwilioToken] = useState(false);
+
   // API Settings
   const [phantombusterApiKey, setPhantombusterApiKey] = useState(settings.phantombusterApiKey);
   const [openaiApiKey, setOpenaiApiKey] = useState(settings.openaiApiKey);
@@ -246,6 +252,41 @@ export default function SettingsPage() {
     toast.success(appLanguage === 'ar' ? 'تم حفظ مفاتيح API بنجاح' : 'API keys saved');
   };
 
+  const handleSaveSMS = () => {
+    updateSettings({ twilioAccountSid, twilioAuthToken, twilioPhoneNumber });
+    toast.success(appLanguage === 'ar' ? 'تم حفظ إعدادات SMS بنجاح' : 'SMS settings saved');
+  };
+
+  const handleTestSMS = async () => {
+    toast.info(appLanguage === 'ar' ? 'جاري اختبار الاتصال...' : 'Testing connection...');
+    try {
+      const response = await fetch('/api/messaging/sms/test', { method: 'POST' });
+      const result = await response.json();
+      if (result.success) {
+        toast.success(appLanguage === 'ar' ? '✅ الاتصال بـ Twilio ناجح!' : '✅ Twilio connection successful!');
+      } else {
+        toast.error(appLanguage === 'ar' ? `❌ فشل الاتصال: ${result.error}` : `❌ Connection failed: ${result.error}`);
+      }
+    } catch (error) {
+      toast.error(appLanguage === 'ar' ? '❌ فشل الاتصال' : '❌ Connection failed');
+    }
+  };
+
+  const handleTestWhatsApp = async () => {
+    toast.info(appLanguage === 'ar' ? 'جاري اختبار الاتصال...' : 'Testing connection...');
+    try {
+      const response = await fetch('/api/messaging/whatsapp/test', { method: 'POST' });
+      const result = await response.json();
+      if (result.success) {
+        toast.success(appLanguage === 'ar' ? '✅ الاتصال بـ WhatsApp ناجح!' : '✅ WhatsApp connection successful!');
+      } else {
+        toast.error(appLanguage === 'ar' ? `❌ فشل الاتصال: ${result.error}` : `❌ Connection failed: ${result.error}`);
+      }
+    } catch (error) {
+      toast.error(appLanguage === 'ar' ? '❌ فشل الاتصال' : '❌ Connection failed');
+    }
+  };
+
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
@@ -261,12 +302,13 @@ export default function SettingsPage() {
 
       {/* Tabs */}
       <Tabs defaultValue="general" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-7">
+        <TabsList className="grid w-full grid-cols-8">
           <TabsTrigger value="general">{appLanguage === 'ar' ? 'عام' : 'General'}</TabsTrigger>
           <TabsTrigger value="notifications">{appLanguage === 'ar' ? 'الإشعارات' : 'Notifications'}</TabsTrigger>
           <TabsTrigger value="android">Android</TabsTrigger>
           <TabsTrigger value="database">{appLanguage === 'ar' ? 'قاعدة البيانات' : 'Database'}</TabsTrigger>
           <TabsTrigger value="email">{appLanguage === 'ar' ? 'البريد' : 'Email'}</TabsTrigger>
+          <TabsTrigger value="sms">SMS</TabsTrigger>
           <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
           <TabsTrigger value="api">APIs</TabsTrigger>
         </TabsList>
@@ -691,6 +733,70 @@ export default function SettingsPage() {
           </Card>
         </TabsContent>
 
+        {/* SMS Settings */}
+        <TabsContent value="sms" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Smartphone className="w-5 h-5" />
+                {appLanguage === 'ar' ? 'إعدادات SMS (Twilio)' : 'SMS Settings (Twilio)'}
+              </CardTitle>
+              <CardDescription>{appLanguage === 'ar' ? 'إعداد Twilio لإرسال الرسائل النصية' : 'Configure Twilio for SMS messaging'}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label>Account SID</Label>
+                <Input
+                  value={twilioAccountSid}
+                  onChange={(e) => setTwilioAccountSid(e.target.value)}
+                  placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Auth Token</Label>
+                <div className="relative">
+                  <Input
+                    type={showTwilioToken ? "text" : "password"}
+                    value={twilioAuthToken}
+                    onChange={(e) => setTwilioAuthToken(e.target.value)}
+                    placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowTwilioToken(!showTwilioToken)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    {showTwilioToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>{appLanguage === 'ar' ? 'رقم الهاتف (Twilio)' : 'Phone Number (Twilio)'}</Label>
+                <Input
+                  value={twilioPhoneNumber}
+                  onChange={(e) => setTwilioPhoneNumber(e.target.value)}
+                  placeholder="+1234567890"
+                  dir="ltr"
+                />
+              </div>
+
+              <div className="flex gap-2">
+                <Button onClick={handleSaveSMS} className="gap-2">
+                  <Save className="w-4 h-4" />
+                  {appLanguage === 'ar' ? 'حفظ الإعدادات' : 'Save Settings'}
+                </Button>
+                <Button onClick={handleTestSMS} variant="outline" className="gap-2">
+                  <Smartphone className="w-4 h-4" />
+                  {appLanguage === 'ar' ? 'اختبار الاتصال' : 'Test Connection'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         {/* WhatsApp Settings */}
         <TabsContent value="whatsapp" className="space-y-4">
           <Card>
@@ -744,10 +850,16 @@ export default function SettingsPage() {
                 </>
               )}
 
-              <Button onClick={handleSaveWhatsApp} className="gap-2">
-                <Save className="w-4 h-4" />
-                {appLanguage === 'ar' ? 'حفظ الإعدادات' : 'Save Settings'}
-              </Button>
+              <div className="flex gap-2">
+                <Button onClick={handleSaveWhatsApp} className="gap-2">
+                  <Save className="w-4 h-4" />
+                  {appLanguage === 'ar' ? 'حفظ الإعدادات' : 'Save Settings'}
+                </Button>
+                <Button onClick={handleTestWhatsApp} variant="outline" className="gap-2">
+                  <MessageSquare className="w-4 h-4" />
+                  {appLanguage === 'ar' ? 'اختبار الاتصال' : 'Test Connection'}
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
