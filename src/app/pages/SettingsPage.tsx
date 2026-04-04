@@ -65,6 +65,7 @@ export default function SettingsPage() {
   const [smtpPort, setSmtpPort] = useState(settings.smtpPort);
   const [smtpEmail, setSmtpEmail] = useState(settings.smtpEmail);
   const [smtpPassword, setSmtpPassword] = useState(settings.smtpPassword);
+  const [showSmtpPassword, setShowSmtpPassword] = useState(false);
   const [emailSignature, setEmailSignature] = useState(settings.emailSignature);
 
   // WhatsApp Settings
@@ -218,6 +219,21 @@ export default function SettingsPage() {
   const handleSaveEmail = () => {
     updateSettings({ smtpHost, smtpPort, smtpEmail, smtpPassword, emailSignature });
     toast.success(appLanguage === 'ar' ? 'تم حفظ إعدادات البريد الإلكتروني بنجاح' : 'Email settings saved');
+  };
+
+  const handleTestEmail = async () => {
+    toast.info(appLanguage === 'ar' ? 'جاري اختبار الاتصال...' : 'Testing connection...');
+    try {
+      const response = await fetch('/api/email/test', { method: 'POST' });
+      const result = await response.json();
+      if (result.success) {
+        toast.success(appLanguage === 'ar' ? '✅ الاتصال ناجح!' : '✅ Connection successful!');
+      } else {
+        toast.error(appLanguage === 'ar' ? `❌ فشل الاتصال: ${result.error}` : `❌ Connection failed: ${result.error}`);
+      }
+    } catch (error) {
+      toast.error(appLanguage === 'ar' ? '❌ فشل الاتصال' : '❌ Connection failed');
+    }
   };
 
   const handleSaveWhatsApp = () => {
@@ -634,7 +650,21 @@ export default function SettingsPage() {
                 </div>
                 <div className="space-y-2">
                   <Label>{appLanguage === 'ar' ? 'كلمة المرور' : 'Password'}</Label>
-                  <Input type="password" value={smtpPassword} onChange={(e) => setSmtpPassword(e.target.value)} />
+                  <div className="relative">
+                    <Input 
+                      type={showSmtpPassword ? "text" : "password"} 
+                      value={smtpPassword} 
+                      onChange={(e) => setSmtpPassword(e.target.value)}
+                      className="pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowSmtpPassword(!showSmtpPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      {showSmtpPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -647,10 +677,16 @@ export default function SettingsPage() {
                 />
               </div>
 
-              <Button onClick={handleSaveEmail} className="gap-2">
-                <Save className="w-4 h-4" />
-                {appLanguage === 'ar' ? 'حفظ الإعدادات' : 'Save Settings'}
-              </Button>
+              <div className="flex gap-2">
+                <Button onClick={handleSaveEmail} className="gap-2">
+                  <Save className="w-4 h-4" />
+                  {appLanguage === 'ar' ? 'حفظ الإعدادات' : 'Save Settings'}
+                </Button>
+                <Button onClick={handleTestEmail} variant="outline" className="gap-2">
+                  <Mail className="w-4 h-4" />
+                  {appLanguage === 'ar' ? 'اختبار الاتصال' : 'Test Connection'}
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

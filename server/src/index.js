@@ -14,6 +14,7 @@ import activitiesRouter from './routes/activities.js';
 import settingsRouter from './routes/settings.js';
 import scrapeRouter from './routes/scrape.js';
 import backupRouter from './routes/backup.js';
+import emailRouter from './routes/email.js';
 import { setupSignaling, dialDevice } from './signaling.js';
 import { fileURLToPath } from 'url';
 import path from 'path';
@@ -40,6 +41,7 @@ app.use('/api/activities', activitiesRouter);
 app.use('/api/settings', settingsRouter);
 app.use('/api/scrape', scrapeRouter);
 app.use('/api/backup', backupRouter);
+app.use('/api/email', emailRouter);
 
 // Health check
 app.get('/api/health', (req, res) => {
