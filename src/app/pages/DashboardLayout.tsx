@@ -1,6 +1,7 @@
 import { Outlet, useNavigate, useLocation } from 'react-router';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useCRM } from '../contexts/CRMContext';
 import { Button } from '../components/ui/button';
 import {
   LayoutDashboard, 
@@ -28,6 +29,7 @@ import { SettingsToolbar } from '../components/SettingsToolbar';
 export default function DashboardLayout() {
   const { user, logout, isAuthenticated } = useAuth();
   const { t, language } = useLanguage();
+  const { settings } = useCRM();
   const navigate = useNavigate();
   const location = useLocation();
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
@@ -80,7 +82,7 @@ export default function DashboardLayout() {
               <PhoneCall className="w-6 h-6 text-muted-foreground relative z-10 transition-transform duration-500 group-hover:scale-110 group-hover:rotate-12" />
             </div>
             <div className={`transition-all duration-300 ${isSidebarExpanded ? 'opacity-100 w-auto' : 'opacity-0 w-0'} overflow-hidden whitespace-nowrap`}>
-              <h1 className="font-bold text-xl text-foreground">LeadEngine</h1>
+              <h1 className="font-bold text-xl text-foreground">{settings.companyName || 'LeadEngine'}</h1>
             </div>
           </div>
 
