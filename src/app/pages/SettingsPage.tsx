@@ -20,7 +20,9 @@ import {
   Shield,
   Zap,
   Save,
-  Check
+  Check,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -53,6 +55,7 @@ export default function SettingsPage() {
 
   // Database Settings
   const [mongodbUri, setMongodbUri] = useState(settings.mongodbUri);
+  const [showMongoUri, setShowMongoUri] = useState(false);
   const [autoBackup, setAutoBackup] = useState(settings.autoBackup);
   const [backupFrequency, setBackupFrequency] = useState(settings.backupFrequency);
   const [backupRetention, setBackupRetention] = useState(String(settings.backupRetention));
@@ -117,11 +120,99 @@ export default function SettingsPage() {
     toast.success(appLanguage === 'ar' ? 'تم حفظ إعدادات قاعدة البيانات نجاح' : 'Database settings saved');
   };
 
-  const handleBackupNow = () => {
+  const handleBackupNow = async () => {
     toast.info(appLanguage === 'ar' ? 'جاري إنشاء نسخة احتياطية...' : 'Creating backup...');
-    setTimeout(() => {
-      toast.success(appLanguage === 'ar' ? '✅ تم إنشاء النسخة الاحتياطية بنجاح' : '✅ Backup created successfully');
-    }, 2000);
+    try {
+      const response = await fetch('/api/backup/export');
+      if (!response.ok) throw new Error('Backup failed');
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `leadengine-backup-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      toast.success(appLanguage === 'ar' ? '✅ تم تحميل النسخة الاحتياطية بنجاح' : '✅ Backup downloaded successfully');
+    } catch (error) {
+      toast.error(appLanguage === 'ar' ? '❌ فشل إنشاء النسخة الاحتياطية' : '❌ Backup failed');
+      console.error('Backup error:', error);
+    }
+  };
+
+  const handleRestoreBackup = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    toast.info(appLanguage === 'ar' ? 'جاري استعادة النسخة الاحتياطية...' : 'Restoring backup...');
+    
+    try {
+      const text = await file.text();
+      const backup = JSON.parse(text);
+      
+      if (!backup.data) {
+        throw new Error('Invalid backup file');
+      }
+
+      const response = await fetch('/api/backup/restore', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data: backup.data }),
+      });
+
+      if (!response.ok) throw new Error('Restore failed');
+      
+      const result = await response.json();
+      toast.success(
+        appLanguage === 'ar' 
+          ? `✅ تم استعادة النسخة الاحتياطية: ${result.results.leads.inserted} عملاء، ${result.results.calls.inserted} مكالمات`
+          : `✅ Backup restored: ${result.results.leads.inserted} leads, ${result.results.calls.inserted} calls`
+      );
+      
+      // Reload page to refresh data
+      setTimeout(() => window.location.reload(), 1500);
+    } catch (error) {
+      toast.error(appLanguage === 'ar' ? '❌ فشل استعادة النسخة الاحتياطية' : '❌ Restore failed');
+      console.error('Restore error:', error);
+    }
+    
+    // Clear input
+    event.target.value = '';
+  };
+
+  const handleExportCollection = async (collection: string) => {
+    const collectionNames: Record<string, { ar: string; en: string }> = {
+      leads: { ar: 'العملاء المحتملين', en: 'Leads' },
+      calls: { ar: 'المكالمات', en: 'Calls' },
+      meetings: { ar: 'الاجتماعات', en: 'Meetings' },
+      users: { ar: 'المستخدمين', en: 'Users' },
+      activities: { ar: 'النشاطات', en: 'Activities' },
+    };
+
+    toast.info(appLanguage === 'ar' ? `جاري تصدير ${collectionNames[collection].ar}...` : `Exporting ${collectionNames[collection].en}...`);
+    
+    try {
+      const response = await fetch(`/api/backup/export/${collection}`);
+      if (!response.ok) throw new Error('Export failed');
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${collection}-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      toast.success(appLanguage === 'ar' ? `✅ تم تصدير ${collectionNames[collection].ar}` : `✅ ${collectionNames[collection].en} exported`);
+    } catch (error) {
+      toast.error(appLanguage === 'ar' ? '❌ فشل التصدير' : '❌ Export failed');
+      console.error('Export error:', error);
+    }
   };
 
   const handleSaveEmail = () => {
@@ -417,12 +508,22 @@ export default function SettingsPage() {
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label>{appLanguage === 'ar' ? 'رابط MongoDB' : 'MongoDB URI'}</Label>
-                <Input
-                  type="password"
-                  value={mongodbUri}
-                  onChange={(e) => setMongodbUri(e.target.value)}
-                  placeholder="mongodb://localhost:27017/leadengine"
-                />
+                <div className="relative">
+                  <Input
+                    type={showMongoUri ? "text" : "password"}
+                    value={mongodbUri}
+                    onChange={(e) => setMongodbUri(e.target.value)}
+                    placeholder="mongodb://localhost:27017/leadengine"
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowMongoUri(!showMongoUri)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    {showMongoUri ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
 
               <div className="flex items-center justify-between">
@@ -461,15 +562,47 @@ export default function SettingsPage() {
                 </div>
               )}
 
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <Button onClick={handleSaveDatabase} className="gap-2">
                   <Save className="w-4 h-4" />
                   {appLanguage === 'ar' ? 'حفظ الإعدادات' : 'Save Settings'}
                 </Button>
                 <Button onClick={handleBackupNow} variant="outline" className="gap-2">
                   <Database className="w-4 h-4" />
-                  {appLanguage === 'ar' ? 'نسخ احتياطي الآن' : 'Backup Now'}
+                  {appLanguage === 'ar' ? 'تحميل نسخة كاملة' : 'Download Full Backup'}
                 </Button>
+                <label className="inline-flex items-center gap-2 px-4 py-2 border border-input rounded-md cursor-pointer hover:bg-accent transition-colors text-sm font-medium">
+                  <Database className="w-4 h-4" />
+                  {appLanguage === 'ar' ? 'استعادة نسخة احتياطية' : 'Restore Backup'}
+                  <input
+                    type="file"
+                    accept=".json"
+                    onChange={handleRestoreBackup}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+
+              {/* Export Individual Collections for MongoDB Compass */}
+              <div className="pt-4 border-t">
+                <p className="text-sm font-medium mb-3">{appLanguage === 'ar' ? 'تصدير منفصل (لـ MongoDB Compass)' : 'Export Individual Collections (for MongoDB Compass)'}</p>
+                <div className="flex flex-wrap gap-2">
+                  <Button onClick={() => handleExportCollection('leads')} variant="secondary" size="sm" className="gap-2">
+                    {appLanguage === 'ar' ? 'العملاء المحتملين' : 'Leads'}
+                  </Button>
+                  <Button onClick={() => handleExportCollection('calls')} variant="secondary" size="sm" className="gap-2">
+                    {appLanguage === 'ar' ? 'المكالمات' : 'Calls'}
+                  </Button>
+                  <Button onClick={() => handleExportCollection('meetings')} variant="secondary" size="sm" className="gap-2">
+                    {appLanguage === 'ar' ? 'الاجتماعات' : 'Meetings'}
+                  </Button>
+                  <Button onClick={() => handleExportCollection('users')} variant="secondary" size="sm" className="gap-2">
+                    {appLanguage === 'ar' ? 'المستخدمين' : 'Users'}
+                  </Button>
+                  <Button onClick={() => handleExportCollection('activities')} variant="secondary" size="sm" className="gap-2">
+                    {appLanguage === 'ar' ? 'النشاطات' : 'Activities'}
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
